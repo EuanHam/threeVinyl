@@ -204,3 +204,163 @@ export const playRandomTopSong = async () => {
         console.error('Error playing song:', error);
     }
 };
+
+export const getTopAlbums = async () => {
+    const token = getAccessToken();
+    if (!token) return [];
+    
+    try {
+        const response = await fetch('https://api.spotify.com/v1/me/top/tracks?limit=50', {
+            headers: {
+                'Authorization': `Bearer ${token}`
+            }
+        });
+        
+        if (response.status === 401) {
+            console.log('Token expired, clearing stored token');
+            window.localStorage.removeItem('spotify_access_token');
+            return [];
+        }
+        
+        const data = await response.json();
+        if (!data.items) return [];
+        
+        // Extract unique albums from top tracks
+        const albums = [];
+        const albumIds = new Set();
+        
+        for (const track of data.items) {
+            const album = track.album;
+            if (!albumIds.has(album.id)) {
+                albumIds.add(album.id);
+                albums.push({
+                    id: album.id,
+                    name: album.name,
+                    artist: album.artists[0].name,
+                    uri: album.uri,
+                    image: album.images[0]?.url
+                });
+                
+                if (albums.length >= 5) break;
+            }
+        }
+        
+        console.log('Top albums:', albums);
+        return albums;
+    } catch (error) {
+        console.error('Error getting top albums:', error);
+        return [];
+    }
+};
+
+export const playAlbum = async (albumUri) => {
+    const token = getAccessToken();
+    if (!token) {
+        console.error('Access token is missing. Please authenticate first.');
+        return;
+    }
+
+    try {
+        // Check for active devices
+        const devices = await getAvailableDevices();
+        const activeDevices = devices.filter(device => device.is_active);
+
+        if (activeDevices.length === 0) {
+            alert(`No active devices found. Found these devices: ${devices.map(d => d.name).join(', ')}. Please start playing music on one of them first.`);
+            return;
+        }
+
+        const playResponse = await fetch(`https://api.spotify.com/v1/me/player/play`, {
+            method: 'PUT',
+            headers: {
+                'Authorization': `Bearer ${token}`,
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ context_uri: albumUri })
+        });
+
+        if (playResponse.status === 401) {
+            console.log('Token expired during play request');
+            window.localStorage.removeItem('spotify_access_token');
+            alert('Your Spotify session has expired. Please press "p" again to re-authenticate.');
+            return;
+        }
+
+        if (!playResponse.ok) {
+            const errorData = await playResponse.text();
+            console.error('Play album request failed:', playResponse.status, errorData);
+            alert('Failed to play album. Make sure Spotify is open and active.');
+        } else {
+            console.log('Album started successfully');
+            alert('Album started playing!');
+        }
+    } catch (error) {
+        console.error('Error playing album:', error);
+    }
+};
+
+export const togglePlayPause = async () => {
+    const token = getAccessToken();
+    if (!token) {
+        console.error('Access token is missing. Please authenticate first.');
+        return;
+    }
+
+    try {
+        // Check for active devices
+        const devices = await getAvailableDevices();
+        const activeDevices = devices.filter(device => device.is_active);
+
+        if (activeDevices.length === 0) {
+            alert('No active devices found. Please start playing music first.');
+            return;
+        }
+
+        // Get current playback state
+        const stateResponse = await fetch('https://api.spotify.com/v1/me/player', {
+            headers: {
+                'Authorization': `Bearer ${token}`
+            }
+        });
+
+        if (stateResponse.status === 401) {
+            console.log('Token expired during playback state request');
+            window.localStorage.removeItem('spotify_access_token');
+            alert('Your Spotify session has expired. Please press "p" again to re-authenticate.');
+            return;
+        }
+
+        if (stateResponse.status === 204) {
+            // No active playback
+            console.log('No active playback to pause/resume');
+            return;
+        }
+
+        const stateData = await stateResponse.json();
+        const isPlaying = stateData.is_playing;
+
+        // Toggle play/pause based on current state
+        const endpoint = isPlaying ? 'pause' : 'play';
+        const playPauseResponse = await fetch(`https://api.spotify.com/v1/me/player/${endpoint}`, {
+            method: 'PUT',
+            headers: {
+                'Authorization': `Bearer ${token}`
+            }
+        });
+
+        if (playPauseResponse.status === 401) {
+            console.log('Token expired during play/pause request');
+            window.localStorage.removeItem('spotify_access_token');
+            alert('Your Spotify session has expired. Please press "p" again to re-authenticate.');
+            return;
+        }
+
+        if (playPauseResponse.ok) {
+            console.log(`Playback ${isPlaying ? 'paused' : 'resumed'}`);
+        } else {
+            console.error('Failed to toggle play/pause:', playPauseResponse.status);
+        }
+    } catch (error) {
+        console.error('Error toggling play/pause:', error);
+    }
+};
