@@ -99,6 +99,15 @@ export const getAvailableDevices = async () => {
                 'Authorization': `Bearer ${token}`
             }
         });
+        
+        // Check if token is expired
+        if (response.status === 401) {
+            console.log('Token expired, clearing stored token');
+            window.localStorage.removeItem('spotify_access_token');
+            alert('Your Spotify session has expired. Please authenticate again.');
+            return [];
+        }
+        
         const data = await response.json();
         console.log('Available devices:', data.devices);
         return data.devices || [];
@@ -119,8 +128,28 @@ export const playRandomTopSong = async () => {
     try {
         // Check for devices first
         const devices = await getAvailableDevices();
+        console.log('All devices found:', devices);
+        
+        // If token was expired, devices will be empty and user will need to re-auth
         if (devices.length === 0) {
-            alert('No active Spotify devices found. Please open Spotify on any device and start playing a song, then try again.');
+            if (!getAccessToken()) {
+                // Token was cleared due to expiration
+                alert('Please press "p" again to re-authenticate with Spotify.');
+                return;
+            }
+            alert('No Spotify devices found. Please open Spotify on any device and start playing a song, then try again.');
+            return;
+        }
+
+        // Check for active devices
+        const activeDevices = devices.filter(device => device.is_active);
+        console.log('Active devices:', activeDevices);
+
+        if (activeDevices.length === 0) {
+            const firstDevice = devices[0];
+            console.log('No active devices, trying to use first available device:', firstDevice);
+            
+            alert(`No active devices found. Found these devices: ${devices.map(d => d.name).join(', ')}. Please start playing music on one of them first.`);
             return;
         }
 
@@ -129,6 +158,14 @@ export const playRandomTopSong = async () => {
                 'Authorization': `Bearer ${token}`
             }
         });
+
+        // Check if token expired during this request too
+        if (response.status === 401) {
+            console.log('Token expired during top tracks request');
+            window.localStorage.removeItem('spotify_access_token');
+            alert('Your Spotify session has expired. Please press "p" again to re-authenticate.');
+            return;
+        }
 
         const data = await response.json();
         console.log('Top tracks response:', data); // Debug
@@ -148,6 +185,13 @@ export const playRandomTopSong = async () => {
             },
             body: JSON.stringify({ uris: [songUri] })
         });
+
+        if (playResponse.status === 401) {
+            console.log('Token expired during play request');
+            window.localStorage.removeItem('spotify_access_token');
+            alert('Your Spotify session has expired. Please press "p" again to re-authenticate.');
+            return;
+        }
 
         if (!playResponse.ok) {
             const errorData = await playResponse.text();
