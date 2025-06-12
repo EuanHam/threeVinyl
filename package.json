@@ -1,0 +1,21 @@
+{
+  "name": "threejs-spotify-app",
+  "version": "1.0.0",
+  "description": "A simple application that displays a 3D box using Three.js and plays random top songs from Spotify.",
+  "main": "src/main.js",
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start"
+  },
+  "dependencies": {
+    "three": "^0.136.0",
+    "next": "^14.0.0",
+    "react": "^18.0.0",
+    "react-dom": "^18.0.0"
+  },
+  "devDependencies": {
+  },
+  "author": "",
+  "license": "ISC"
+}
