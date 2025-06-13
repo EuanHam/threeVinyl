@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
-import { authenticate, getAccessToken, handleRedirect, playRandomTopSong, getTopAlbums, playAlbum, togglePlayPause } from './spotifyAuth';
+import { authenticate, getAccessToken, handleRedirect, playRandomTopSong, getTopAlbums, playAlbum, togglePlayPause, getCurrentPlaybackState } from './spotifyAuth';
 
 handleRedirect();
 
@@ -9,6 +9,13 @@ console.log('Spotify access token:', getAccessToken()); // Debug: See if token i
 
 let scene, camera, renderer, controls;
 let model;
+let recordArmPivot;
+let recordArmOriginalRotation = 0;
+let recordArmTargetRotation = 0;
+let isPlaying = false;
+let lastPlaybackCheck = 0;
+let pendingPlayback = false;
+let playbackDelayTimer = null;
 let topAlbums = [];
 
 function init() {
@@ -51,6 +58,23 @@ function init() {
             model.position.set(0, 0, 0);
             model.rotation.y = -1 * Math.PI / 2; // Rotate 90 degrees on Y axis
             
+            // Find the recordArmPivot component
+            recordArmPivot = model.getObjectByName('recordArmPivot');
+            if (recordArmPivot) {
+                console.log('Found recordArmPivot:', recordArmPivot);
+                // Store the original rotation
+                recordArmOriginalRotation = recordArmPivot.rotation.y;
+                recordArmTargetRotation = recordArmOriginalRotation;
+            } else {
+                console.warn('recordArmPivot not found in model');
+                // Debug: Print all object names in the model
+                model.traverse((child) => {
+                    if (child.name) {
+                        console.log('Found object:', child.name);
+                    }
+                });
+            }
+            
             console.log('Model added to scene successfully');
         },
         function (progress) {
@@ -75,8 +99,52 @@ function init() {
 
 function animate() {
     requestAnimationFrame(animate);
+    
+    // Check playback state every 2 seconds (to avoid too many API calls)
+    const now = Date.now();
+    if (now - lastPlaybackCheck > 2000 && getAccessToken()) {
+        lastPlaybackCheck = now;
+        checkPlaybackState();
+    }
+    
+    // Smoothly animate the record arm pivot to target rotation
+    if (recordArmPivot) {
+        const rotationDiff = recordArmTargetRotation - recordArmPivot.rotation.y;
+        if (Math.abs(rotationDiff) > 0.001) {
+            recordArmPivot.rotation.y += rotationDiff * 0.05; // Smooth interpolation
+        }
+    }
+    
     controls.update();
     renderer.render(scene, camera);
+}
+
+async function checkPlaybackState() {
+    const playbackState = await getCurrentPlaybackState();
+    if (playbackState) {
+        const newIsPlaying = playbackState.is_playing || false;
+        if (newIsPlaying !== isPlaying) {
+            // Only update if we're not in a pending playback state
+            if (!pendingPlayback) {
+                isPlaying = newIsPlaying;
+                updateArmPosition();
+            }
+        }
+    }
+}
+
+function updateArmPosition() {
+    if (recordArmPivot) {
+        if (isPlaying) {
+            // When music starts playing, immediately move arm to playing position
+            recordArmTargetRotation = recordArmOriginalRotation - (Math.PI / 6);
+            console.log('Music playing - moving arm to playing position');
+        } else {
+            // When music stops, immediately return to original position
+            recordArmTargetRotation = recordArmOriginalRotation;
+            console.log('Music stopped - returning arm to rest position');
+        }
+    }
 }
 
 function onWindowResize() {
@@ -100,8 +168,8 @@ function handleKeyPress(event) {
             console.log('No access token, authenticating...');
             authenticate();
         } else {
-            console.log('Access token found, playing random top song...');
-            playRandomTopSong();
+            console.log('Access token found, preparing to play random top song...');
+            startDelayedPlayback(() => playRandomTopSong());
             // Also load albums if not already loaded
             if (topAlbums.length === 0) {
                 loadTopAlbums();
@@ -110,7 +178,13 @@ function handleKeyPress(event) {
     } else if (event.key === ' ') {
         event.preventDefault(); // Prevent page scrolling
         if (getAccessToken()) {
-            togglePlayPause();
+            if (isPlaying) {
+                // If music is playing, pause immediately (no delay)
+                togglePlayPause();
+            } else {
+                // If music is paused, start delayed resume
+                startDelayedPlayback(() => togglePlayPause());
+            }
         } else {
             console.log('Not authenticated, cannot pause/resume');
         }
@@ -120,15 +194,15 @@ function handleKeyPress(event) {
             console.log('Albums not loaded yet, loading now...');
             loadTopAlbums().then(() => {
                 if (topAlbums[albumIndex]) {
-                    console.log(`Playing album ${event.key}:`, topAlbums[albumIndex].name);
-                    playAlbum(topAlbums[albumIndex].uri);
+                    console.log(`Preparing to play album ${event.key}:`, topAlbums[albumIndex].name);
+                    startDelayedPlayback(() => playAlbum(topAlbums[albumIndex].uri));
                 } else {
                     alert(`No album available for key ${event.key}.`);
                 }
             });
         } else if (topAlbums[albumIndex]) {
-            console.log(`Playing album ${event.key}:`, topAlbums[albumIndex].name);
-            playAlbum(topAlbums[albumIndex].uri);
+            console.log(`Preparing to play album ${event.key}:`, topAlbums[albumIndex].name);
+            startDelayedPlayback(() => playAlbum(topAlbums[albumIndex].uri));
         } else {
             console.log(`No album available for key ${event.key}`);
             alert(`No album available for key ${event.key}. Only ${topAlbums.length} albums available.`);
@@ -140,3 +214,23 @@ function handleKeyPress(event) {
 window.addEventListener('load', loadTopAlbums);
 window.addEventListener('keydown', handleKeyPress);
 init();
+
+function startDelayedPlayback(playbackFunction) {
+    // Clear any existing timer
+    if (playbackDelayTimer) {
+        clearTimeout(playbackDelayTimer);
+    }
+    
+    // Set pending state and move arm immediately
+    pendingPlayback = true;
+    recordArmTargetRotation = recordArmOriginalRotation - (Math.PI / 6);
+    console.log('Starting delayed playback - moving arm to playing position');
+    
+    // Start the 2-second timer for actual music playback
+    playbackDelayTimer = setTimeout(() => {
+        playbackFunction();
+        pendingPlayback = false;
+        isPlaying = true; // Set playing state since we just triggered playback
+        console.log('2-second delay complete - music should now be playing');
+    }, 2000);
+}
