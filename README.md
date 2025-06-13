@@ -1,59 +1,42 @@
-# Three.js and Spotify Integration
+# Threeify
 
-This project demonstrates a simple application that combines Three.js for 3D rendering and the Spotify Playback SDK for music playback. The application displays a 3D box and allows users to play random top songs from Spotify using keyboard inputs.
+This project is an online record player using Spotify's Playback SDK while being visualized using Three.js
 
-## Project Structure
-
-```
-threejs-spotify-app
-├── public
-│   └── index.html        # HTML structure for the application
-├── src
-│   ├── main.js           # Entry point of the application
-│   ├── spotifyAuth.js    # Handles Spotify authentication flow
-│   └── threeBox.js       # Three.js logic to create and display a 3D box
-├── package.json           # npm configuration file
-├── .env                   # Environment variables for sensitive information
-└── README.md              # Project documentation
-```
-
-## Setup Instructions
+## Setup
 
 1. **Clone the Repository**
    ```bash
-   git clone <repository-url>
+   git clone https://github.com/EuanHam/threeVinyl.git
    cd threejs-spotify-app
    ```
 
 2. **Install Dependencies**
-   Make sure you have Node.js installed. Then run:
+   Install Node.js. Then run:
    ```bash
    npm install
    ```
 
-3. **Configure Environment Variables**
-   Create a `.env` file in the root directory and add your Spotify credentials:
+3. **Configure the Environment**
+   Create a `.env` file in the root directory and add your Spotify client ID, client secret, and direct URI. This information can be accessed by logging into Spotify's developer dashboard (https://developer.spotify.com/) and creating an app. Set the redirect URI as 'http://127.0.0.1:3000/auth/callback'
    ```
    SPOTIFY_CLIENT_ID=your_client_id
    SPOTIFY_CLIENT_SECRET=your_client_secret
-   SPOTIFY_REDIRECT_URI=your_secure_redirect_uri
+   SPOTIFY_REDIRECT_URI=http://127.0.0.1:3000/auth/callback
    ```
 
 4. **Run the Application**
    Start the application using:
    ```bash
-   npm start
+   npm run dev
    ```
 
 5. **Open in Browser**
-   Navigate to `http://localhost:3000` (or the specified port) to view the application.
+   Navigate to `http://localhost:3000`
 
 ## Usage
-
-- Press specific keys (as defined in `src/main.js`) to play random top songs from Spotify.
-- The 3D box will be displayed using Three.js, providing a visual representation alongside the music playback.
-
-## Notes
-
-- Ensure that your Spotify application is set up correctly in the Spotify Developer Dashboard, and the redirect URI matches the one specified in your `.env` file.
-- This project is a basic implementation and can be expanded with additional features such as song selection, volume control, and more advanced Three.js visuals.
+- This guide will assume you are using this on a Windows or MacOS device.
+- Press p to authenticate (it may require you to do this twice currently). The app should indicate that you are signed in.
+- Open the Spotify app play a song for a second and then pause it.
+- After authentication, pressing p will allow you to play a random top song.
+- Then the 1-5 keys will allow you play your top 5 albums respectively.
+- You can pause and resume songs using the space bar (note: it may take a second to respond because this app is supposed to simulate a record player)
