@@ -364,3 +364,33 @@ export const togglePlayPause = async () => {
         console.error('Error toggling play/pause:', error);
     }
 };
+
+export const getCurrentPlaybackState = async () => {
+    const token = getAccessToken();
+    if (!token) return null;
+
+    try {
+        const response = await fetch('https://api.spotify.com/v1/me/player', {
+            headers: {
+                'Authorization': `Bearer ${token}`
+            }
+        });
+
+        if (response.status === 401) {
+            console.log('Token expired during playback state request');
+            window.localStorage.removeItem('spotify_access_token');
+            return null;
+        }
+
+        if (response.status === 204) {
+            // No active playback
+            return { is_playing: false };
+        }
+
+        const data = await response.json();
+        return data;
+    } catch (error) {
+        console.error('Error getting playback state:', error);
+        return null;
+    }
+};
