@@ -19,9 +19,9 @@ This project is an online record player using Spotify's Playback SDK while being
 3. **Configure the Environment**
    Create a `.env` file in the root directory and add your Spotify client ID, client secret, and direct URI. This information can be accessed by logging into Spotify's developer dashboard (https://developer.spotify.com/) and creating an app. Set the redirect URI as 'http://127.0.0.1:3000/auth/callback'
    ```
-   SPOTIFY_CLIENT_ID=your_client_id
+   NEXT_PUBLIC_CLIENT_ID=your_client_id
    SPOTIFY_CLIENT_SECRET=your_client_secret
-   SPOTIFY_REDIRECT_URI=http://127.0.0.1:3000/auth/callback
+   NEXT_PUBLIC_REDIRECT_URI=http://127.0.0.1:3000/auth/callback
    ```
 
 4. **Run the Application**
