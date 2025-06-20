@@ -25,13 +25,16 @@ function generateRandomString(length) {
 }
 
 export const authenticate = async () => {
+    // Load SDK first
+    loadSDK();
+    
     const codeVerifier = generateRandomString(128);
     window.localStorage.setItem('spotify_code_verifier', codeVerifier);
 
     const hashed = await sha256(codeVerifier);
     const codeChallenge = base64urlencode(hashed);
 
-    const scope = 'user-read-playback-state user-modify-playback-state user-top-read';
+    const scope = 'user-read-playback-state user-modify-playback-state user-top-read user-read-private';
 
     const authUrl = `https://accounts.spotify.com/authorize?` +
         `client_id=${clientId}` +
@@ -75,6 +78,9 @@ export const handleRedirect = async () => {
                 window.localStorage.setItem('spotify_access_token', data.access_token);
                 console.log('Token stored:', data.access_token); // Debug
                 window.history.replaceState({}, document.title, '/');
+                
+                // Don't automatically initialize player - let user choose
+                console.log('Authentication successful. Player initialization skipped for now.');
             } else {
                 console.error('Failed to get access token:', data);
             }
@@ -125,84 +131,9 @@ export const playRandomTopSong = async () => {
         return;
     }
 
-    try {
-        // Check for devices first
-        const devices = await getAvailableDevices();
-        console.log('All devices found:', devices);
-        
-        // If token was expired, devices will be empty and user will need to re-auth
-        if (devices.length === 0) {
-            if (!getAccessToken()) {
-                // Token was cleared due to expiration
-                alert('Please press "p" again to re-authenticate with Spotify.');
-                return;
-            }
-            alert('No Spotify devices found. Please open Spotify on any device and start playing a song, then try again.');
-            return;
-        }
-
-        // Check for active devices
-        const activeDevices = devices.filter(device => device.is_active);
-        console.log('Active devices:', activeDevices);
-
-        if (activeDevices.length === 0) {
-            const firstDevice = devices[0];
-            console.log('No active devices, trying to use first available device:', firstDevice);
-            
-            alert(`No active devices found. Found these devices: ${devices.map(d => d.name).join(', ')}. Please start playing music on one of them first.`);
-            return;
-        }
-
-        const response = await fetch('https://api.spotify.com/v1/me/top/tracks?limit=50', {
-            headers: {
-                'Authorization': `Bearer ${token}`
-            }
-        });
-
-        // Check if token expired during this request too
-        if (response.status === 401) {
-            console.log('Token expired during top tracks request');
-            window.localStorage.removeItem('spotify_access_token');
-            alert('Your Spotify session has expired. Please press "p" again to re-authenticate.');
-            return;
-        }
-
-        const data = await response.json();
-        console.log('Top tracks response:', data); // Debug
-        if (!data.items || data.items.length === 0) {
-            console.error('No top tracks found.');
-            return;
-        }
-        const randomIndex = Math.floor(Math.random() * data.items.length);
-        const songUri = data.items[randomIndex].uri;
-        console.log('Playing song:', songUri); // Debug
-
-        const playResponse = await fetch(`https://api.spotify.com/v1/me/player/play`, {
-            method: 'PUT',
-            headers: {
-                'Authorization': `Bearer ${token}`,
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({ uris: [songUri] })
-        });
-
-        if (playResponse.status === 401) {
-            console.log('Token expired during play request');
-            window.localStorage.removeItem('spotify_access_token');
-            alert('Your Spotify session has expired. Please press "p" again to re-authenticate.');
-            return;
-        }
-
-        if (!playResponse.ok) {
-            const errorData = await playResponse.text();
-            console.error('Play request failed:', playResponse.status, errorData);
-        } else {
-            console.log('Song started successfully');
-            alert('Song started playing!');
-        }
-    } catch (error) {
-        console.error('Error playing song:', error);
-    }
+    // Default to fallback approach for now to avoid Web Playback SDK issues
+    console.log('Using regular Spotify API (requires active device)');
+    return playRandomTopSongFallback();
 };
 
 export const getTopAlbums = async () => {
@@ -260,6 +191,7 @@ export const playAlbum = async (albumUri) => {
         return;
     }
 
+    // Use regular API approach
     try {
         // Check for active devices
         const devices = await getAvailableDevices();
@@ -394,3 +326,210 @@ export const getCurrentPlaybackState = async () => {
         return null;
     }
 };
+
+// Global variables for player state
+let player = null;
+let deviceId = null;
+let playerReady = false;
+
+// Flag to track if we should use Web Playback SDK or fall back to regular API
+let useWebPlaybackSDK = true;
+let fallbackToRegularAPI = false;
+
+// Load Spotify Web Playback SDK
+const loadSDK = () => {
+    const existingScript = document.getElementById('playerSDK');
+
+    if(existingScript) return;
+
+    const script = document.createElement('script');
+    script.id = 'playerSDK';
+    script.type = 'text/javascript';
+    script.async = false;
+    script.defer = true;
+    script.src = 'https://sdk.scdn.co/spotify-player.js';
+    script.onload = () => console.log("Spotify SDK loaded");
+    script.onerror = (error) => console.error("Error loading Spotify SDK:", error);
+
+    document.head.appendChild(script);
+};
+
+// Initialize the Spotify Web Playback SDK
+const initPlayer = (token) => {
+    const setupPlayer = () => {
+        player = new Spotify.Player({
+            name: 'ThreeVinyl Player',
+            getOAuthToken: cb => { cb(token); }
+        });
+
+        // Error handling
+        player.addListener('initialization_error', ({ message }) => { 
+            console.error('Initialization error:', message); 
+            fallbackToRegularAPI = true;
+            alert('Player initialization failed. Falling back to regular Spotify API. You\'ll need to have Spotify open on another device.');
+        });
+        player.addListener('authentication_error', ({ message }) => { 
+            console.error('Authentication error:', message); 
+            fallbackToRegularAPI = true;
+            alert('Authentication error: ' + message + '. Falling back to regular Spotify API. You\'ll need to have Spotify open on another device.');
+        });
+        player.addListener('account_error', ({ message }) => { 
+            console.error('Account error:', message); 
+            fallbackToRegularAPI = true;
+            alert('Account error: ' + message + '. Web Playback SDK requires Spotify Premium. Falling back to regular API - you\'ll need Spotify open on another device.');
+        });
+        player.addListener('playback_error', ({ message }) => { 
+            console.error('Playback error:', message); 
+        });
+
+        // Playback status updates
+        player.addListener('player_state_changed', state => {
+            if(!state) {
+                console.log('Player state is null');
+                return;
+            }
+            
+            console.log('Player state changed:', state);
+            // Dispatch custom event for main.js to listen to
+            window.dispatchEvent(new CustomEvent('playerStateChanged', { 
+                detail: { 
+                    isPlaying: !state.paused,
+                    track: state.track_window.current_track 
+                } 
+            }));
+        });
+
+        // Ready
+        player.addListener('ready', ({ device_id }) => {
+            console.log('Ready with Device ID', device_id);
+            deviceId = device_id;
+            playerReady = true;
+            
+            // Transfer playback to this device
+            takeOver(token, device_id);
+        });
+
+        // Not Ready
+        player.addListener('not_ready', ({ device_id }) => {
+            console.log('Device ID has gone offline', device_id);
+            playerReady = false;
+        });
+
+        // Connect to the player
+        player.connect();
+        window.player = player;
+    };
+
+    if (window.Spotify) {
+        setupPlayer();
+    } else {
+        window.onSpotifyWebPlaybackSDKReady = () => {
+            setupPlayer();
+        };
+    }
+};
+
+// Take over playback to our virtual device
+const takeOver = async (accessToken, deviceId) => {
+    try {
+        const response = await fetch(`https://api.spotify.com/v1/me/player`, {
+            method: 'PUT',
+            body: JSON.stringify({ device_ids: [deviceId], play: false }),
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${accessToken}`
+            },
+        });
+        
+        if (response.ok) {
+            console.log('Successfully transferred playback to virtual device');
+        } else {
+            console.error('Failed to transfer playback:', response.status);
+        }
+    } catch (error) {
+        console.error('Error transferring playback:', error);
+    }
+};
+
+// Fallback function that uses the regular Spotify API (requires active device)
+const playRandomTopSongFallback = async () => {
+    const token = getAccessToken();
+    if (!token) {
+        console.error('Access token is missing. Please authenticate first.');
+        return;
+    }
+
+    try {
+        // Check for devices first
+        const devices = await getAvailableDevices();
+        console.log('All devices found:', devices);
+        
+        if (devices.length === 0) {
+            alert('No Spotify devices found. Please open Spotify on any device and start playing a song, then try again.');
+            return;
+        }
+
+        // Check for active devices
+        const activeDevices = devices.filter(device => device.is_active);
+        console.log('Active devices:', activeDevices);
+
+        if (activeDevices.length === 0) {
+            alert(`No active devices found. Found these devices: ${devices.map(d => d.name).join(', ')}. Please start playing music on one of them first.`);
+            return;
+        }
+
+        const response = await fetch('https://api.spotify.com/v1/me/top/tracks?limit=50', {
+            headers: {
+                'Authorization': `Bearer ${token}`
+            }
+        });
+
+        if (response.status === 401) {
+            console.log('Token expired during top tracks request');
+            window.localStorage.removeItem('spotify_access_token');
+            alert('Your Spotify session has expired. Please press "p" again to re-authenticate.');
+            return;
+        }
+
+        const data = await response.json();
+        if (!data.items || data.items.length === 0) {
+            console.error('No top tracks found.');
+            return;
+        }
+        
+        const randomIndex = Math.floor(Math.random() * data.items.length);
+        const songUri = data.items[randomIndex].uri;
+        console.log('Playing song:', songUri);
+
+        const playResponse = await fetch(`https://api.spotify.com/v1/me/player/play`, {
+            method: 'PUT',
+            headers: {
+                'Authorization': `Bearer ${token}`,
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ uris: [songUri] })
+        });
+
+        if (playResponse.status === 401) {
+            console.log('Token expired during play request');
+            window.localStorage.removeItem('spotify_access_token');
+            alert('Your Spotify session has expired. Please press "p" again to re-authenticate.');
+            return;
+        }
+
+        if (!playResponse.ok) {
+            const errorData = await playResponse.text();
+            console.error('Play request failed:', playResponse.status, errorData);
+        } else {
+            console.log('Song started successfully');
+            alert('Song started playing!');
+        }
+    } catch (error) {
+        console.error('Error playing song:', error);
+    }
+};
+
+// Export functions and getters for external use
+export { loadSDK, initPlayer };
+export const getPlayerReady = () => playerReady;
+export const getDeviceId = () => deviceId;

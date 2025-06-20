@@ -210,8 +210,16 @@ function handleKeyPress(event) {
     }
 }
 
+// Initialize player on page load if we already have a token
+window.addEventListener('load', () => {
+    const token = getAccessToken();
+    if (token) {
+        console.log('Token found on load - ready to use regular Spotify API.');
+    }
+    loadTopAlbums();
+});
+
 // Load albums when page loads and when user authenticates
-window.addEventListener('load', loadTopAlbums);
 window.addEventListener('keydown', handleKeyPress);
 init();
 
