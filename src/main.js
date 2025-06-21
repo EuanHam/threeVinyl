@@ -1,9 +1,7 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
-import { authenticate, getAccessToken, handleRedirect, playRandomTopSong, getTopAlbums, playAlbum, togglePlayPause, getCurrentPlaybackState } from './spotifyAuth';
-
-handleRedirect();
+import { authenticate, getAccessToken, playRandomTopSong, getTopAlbums, playAlbum, togglePlayPause, getCurrentPlaybackState } from './spotifyAuth';
 
 console.log('Spotify access token:', getAccessToken()); // Debug: See if token is set
 
