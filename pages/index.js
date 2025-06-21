@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { getAccessToken, getTopAlbums } from '../src/spotifyAuth';
+import { getAccessToken, getTopAlbums } from '../src/spotify/index';
 
 export default function Home() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);

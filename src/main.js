@@ -1,9 +1,16 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
-import { authenticate, getAccessToken, handleRedirect, playRandomTopSong, getTopAlbums, playAlbum, togglePlayPause, getCurrentPlaybackState } from './spotifyAuth';
-
-handleRedirect();
+import { 
+    authenticate, 
+    getAccessToken, 
+    playRandomTopSong, 
+    getTopAlbums, 
+    playAlbum, 
+    togglePlayPause, 
+    getCurrentPlaybackState,
+    isWebPlayerEnabled 
+} from './spotify/index.js';
 
 console.log('Spotify access token:', getAccessToken()); // Debug: See if token is set
 
@@ -100,9 +107,9 @@ function init() {
 function animate() {
     requestAnimationFrame(animate);
     
-    // Check playback state every 2 seconds (to avoid too many API calls)
+    // Check playback state every 3 seconds only if we're not using web player
     const now = Date.now();
-    if (now - lastPlaybackCheck > 2000 && getAccessToken()) {
+    if (!isWebPlayerEnabled() && now - lastPlaybackCheck > 3000 && getAccessToken()) {
         lastPlaybackCheck = now;
         checkPlaybackState();
     }
@@ -214,9 +221,44 @@ function handleKeyPress(event) {
 window.addEventListener('load', () => {
     const token = getAccessToken();
     if (token) {
-        console.log('Token found on load - ready to use regular Spotify API.');
+        console.log('Token found on load - attempting to initialize web player...');
+        // Try to initialize web player
+        import('./spotify/webPlayer.js').then(({ initializeWebPlayer }) => {
+            initializeWebPlayer(token);
+        }).catch(error => {
+            console.log('Failed to initialize web player:', error);
+        });
     }
     loadTopAlbums();
+});
+
+// Listen for Web Player state changes
+window.addEventListener('playerStateChanged', (event) => {
+    const { isPlaying: newIsPlaying, track } = event.detail;
+    
+    if (newIsPlaying !== isPlaying) {
+        // Only update if we're not in a pending playback state
+        if (!pendingPlayback) {
+            isPlaying = newIsPlaying;
+            updateArmPosition();
+        }
+    }
+    
+    if (track) {
+        console.log('Now playing via Web Player:', track.name, 'by', track.artists.map(a => a.name).join(', '));
+    }
+});
+
+// Listen for Web Player initialization event
+window.addEventListener('webPlayerInitializing', () => {
+    console.log('Web Player is initializing...');
+    // Could add visual feedback here if desired
+});
+
+// Listen for Web Player ready event
+window.addEventListener('webPlayerReady', (event) => {
+    console.log('Web Player is ready! Device ID:', event.detail.deviceId);
+    alert('Virtual Spotify player is now active! You can play music without having Spotify open on another device.');
 });
 
 // Load albums when page loads and when user authenticates

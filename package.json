@@ -4,7 +4,7 @@
   "description": "A simple application that displays a 3D box using Three.js and plays random top songs from Spotify.",
   "main": "src/main.js",
   "scripts": {
-    "dev": "next dev",
+    "dev": "PORT=3000 next dev",
     "build": "next build",
     "start": "next start"
   },

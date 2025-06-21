@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { handleRedirect } from '../../src/spotifyAuth';
+import { handleRedirect } from '../../src/spotify/index';
 
 export default function Callback() {
   const [status, setStatus] = useState('Processing...');
