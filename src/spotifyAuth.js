@@ -231,9 +231,23 @@ export const playAlbum = async (albumUri) => {
     if (playerReady && deviceId) {
         console.log(`Using Web Playback SDK to play album ${albumUri} on device ${deviceId}`);
         try {
+            // Ensure shuffle and repeat are off for a clean album playthrough
+            await fetch(`https://api.spotify.com/v1/me/player/shuffle?state=false&device_id=${deviceId}`, {
+                method: 'PUT',
+                headers: { 'Authorization': `Bearer ${token}` },
+            });
+            await fetch(`https://api.spotify.com/v1/me/player/repeat?state=off&device_id=${deviceId}`, {
+                method: 'PUT',
+                headers: { 'Authorization': `Bearer ${token}` },
+            });
+
+            // Start playing the album from the very first track
             const response = await fetch(`https://api.spotify.com/v1/me/player/play?device_id=${deviceId}`, {
                 method: 'PUT',
-                body: JSON.stringify({ context_uri: albumUri }),
+                body: JSON.stringify({
+                    context_uri: albumUri,
+                    offset: { position: 0 },
+                }),
                 headers: {
                     'Content-Type': 'application/json',
                     'Authorization': `Bearer ${token}`
@@ -251,7 +265,6 @@ export const playAlbum = async (albumUri) => {
             console.error(`Error playing album with SDK:`, error);
         }
     } else {
-        // Fallback removed, show alert instead
         console.warn('Play command issued but Web Playback SDK not ready. Please wait a moment and try again.');
         alert('Spotify player is initializing. Please try again in a moment.');
     }
