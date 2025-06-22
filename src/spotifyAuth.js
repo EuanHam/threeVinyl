@@ -1,6 +1,3 @@
-// Remove: import { Client } from 'spotify-api-sdk';
-
-// Use NEXT_PUBLIC_ prefix for env vars to expose to browser in Next.js
 const clientId = process.env.NEXT_PUBLIC_CLIENT_ID;
 const redirectUri = process.env.NEXT_PUBLIC_REDIRECT_URI;
 
@@ -25,7 +22,6 @@ function generateRandomString(length) {
 }
 
 export const authenticate = async () => {
-    // No longer need to load SDK here, it will be loaded on demand
     const codeVerifier = generateRandomString(128);
     window.localStorage.setItem('spotify_code_verifier', codeVerifier);
 
@@ -71,10 +67,10 @@ export const handleRedirect = async () => {
             });
 
             const data = await response.json();
-            console.log('Token response:', data); // Debug
+            console.log('Token response:', data);
             if (data.access_token) {
                 window.localStorage.setItem('spotify_access_token', data.access_token);
-                console.log('Token stored:', data.access_token); // Debug
+                console.log('Token stored:', data.access_token);
                 window.history.replaceState({}, document.title, '/');
                 
                 // Don't automatically initialize player - let user choose
