@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { getAccessToken, getTopAlbums } from '../src/spotifyAuth';
+import { getAccessToken, getTopAlbums, initPlayer } from '../src/spotifyAuth';
 
 export default function Home() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -14,6 +14,7 @@ export default function Home() {
       setIsAuthenticated(hasToken);
       
       if (hasToken) {
+        initPlayer(); // Initialize the Web Playback SDK
         const albums = await getTopAlbums();
         setTopAlbums(albums);
       }

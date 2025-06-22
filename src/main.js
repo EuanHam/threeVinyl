@@ -1,11 +1,9 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
-import { authenticate, getAccessToken, handleRedirect, playRandomTopSong, getTopAlbums, playAlbum, togglePlayPause, getCurrentPlaybackState } from './spotifyAuth';
+import { authenticate, getAccessToken, playRandomTopSong, getTopAlbums, playAlbum, togglePlayPause, getCurrentPlaybackState, getPlayerReady } from './spotifyAuth';
 
-handleRedirect();
-
-console.log('Spotify access token:', getAccessToken()); // Debug: See if token is set
+console.log('Spotify access token:', getAccessToken());
 
 let scene, camera, renderer, controls;
 let model;
@@ -27,7 +25,7 @@ function init() {
     camera.position.y = .5;
     camera.rotateX(-.4);
 
-    // Add lighting
+    // lighting
     const ambientLight = new THREE.AmbientLight(0xffffff, 1);
     scene.add(ambientLight);
 
@@ -37,18 +35,17 @@ function init() {
 
     renderer = new THREE.WebGLRenderer({ antialias: true });
     renderer.setSize(width, height);
-    renderer.setClearColor(0x000000); // Black background for contrast
+    renderer.setClearColor(0x000000); // change to something else later
     document.body.appendChild(renderer.domElement);
 
-    // Add orbit controls
+    // orbit controls though remove later for some other control system?
     controls = new OrbitControls(camera, renderer.domElement);
 
-    // Load GLTF model with better debugging
     const loader = new GLTFLoader();
     console.log('Attempting to load model from: /uturn.glb');
     
     loader.load(
-        '/uturn.glb', // File should be in public directory
+        '/uturn.glb',
         function (gltf) {
             console.log('GLTF loaded successfully:', gltf);
             model = gltf.scene;
@@ -56,18 +53,17 @@ function init() {
             
             model.scale.set(0.1, 0.1, 0.1);
             model.position.set(0, 0, 0);
-            model.rotation.y = -1 * Math.PI / 2; // Rotate 90 degrees on Y axis
+            model.rotation.y = -1 * Math.PI / 2; 
             
-            // Find the recordArmPivot component
+            // recordArmPivot component
             recordArmPivot = model.getObjectByName('recordArmPivot');
             if (recordArmPivot) {
                 console.log('Found recordArmPivot:', recordArmPivot);
-                // Store the original rotation
+                // store original rotation
                 recordArmOriginalRotation = recordArmPivot.rotation.y;
                 recordArmTargetRotation = recordArmOriginalRotation;
             } else {
                 console.warn('recordArmPivot not found in model');
-                // Debug: Print all object names in the model
                 model.traverse((child) => {
                     if (child.name) {
                         console.log('Found object:', child.name);
@@ -80,10 +76,10 @@ function init() {
         function (progress) {
             console.log('Loading progress:', (progress.loaded / progress.total * 100) + '%');
         },
+        // maybe add some other fallback or just say threeify can't be used
         function (error) {
             console.error('An error happened loading the model:', error);
             console.log('Falling back to green box');
-            // Fallback to green box if model fails to load
             const boxGeometry = new THREE.BoxGeometry();
             const boxMaterial = new THREE.MeshBasicMaterial({ color: 0x00ff00 });
             const box = new THREE.Mesh(boxGeometry, boxMaterial);
@@ -91,7 +87,7 @@ function init() {
         }
     );
 
-    // Handle window resize
+    // window resize
     window.addEventListener('resize', onWindowResize);
 
     animate();
@@ -100,18 +96,18 @@ function init() {
 function animate() {
     requestAnimationFrame(animate);
     
-    // Check playback state every 2 seconds (to avoid too many API calls)
+    // check playback state every 2 seconds to avoid excessive api calls
     const now = Date.now();
     if (now - lastPlaybackCheck > 2000 && getAccessToken()) {
         lastPlaybackCheck = now;
         checkPlaybackState();
     }
     
-    // Smoothly animate the record arm pivot to target rotation
+
     if (recordArmPivot) {
         const rotationDiff = recordArmTargetRotation - recordArmPivot.rotation.y;
         if (Math.abs(rotationDiff) > 0.001) {
-            recordArmPivot.rotation.y += rotationDiff * 0.05; // Smooth interpolation
+            recordArmPivot.rotation.y += rotationDiff * 0.05; 
         }
     }
     
@@ -124,7 +120,7 @@ async function checkPlaybackState() {
     if (playbackState) {
         const newIsPlaying = playbackState.is_playing || false;
         if (newIsPlaying !== isPlaying) {
-            // Only update if we're not in a pending playback state
+            // only update if we're not in a pending playback state
             if (!pendingPlayback) {
                 isPlaying = newIsPlaying;
                 updateArmPosition();
@@ -136,11 +132,11 @@ async function checkPlaybackState() {
 function updateArmPosition() {
     if (recordArmPivot) {
         if (isPlaying) {
-            // When music starts playing, immediately move arm to playing position
+            // when music starts playing, immediately move arm to playing position
             recordArmTargetRotation = recordArmOriginalRotation - (Math.PI / 6);
             console.log('Music playing - moving arm to playing position');
         } else {
-            // When music stops, immediately return to original position
+            // when music stops, immediately return to original position
             recordArmTargetRotation = recordArmOriginalRotation;
             console.log('Music stopped - returning arm to rest position');
         }
@@ -157,7 +153,6 @@ async function loadTopAlbums() {
     if (getAccessToken()) {
         topAlbums = await getTopAlbums();
         console.log('Loaded top albums:', topAlbums);
-        // Trigger a UI update by dispatching a custom event
         window.dispatchEvent(new CustomEvent('albumsLoaded', { detail: topAlbums }));
     }
 }
@@ -166,23 +161,21 @@ function handleKeyPress(event) {
     if (event.key === 'p') {
         if (!getAccessToken()) {
             console.log('No access token, authenticating...');
+            sessionStorage.setItem('playAfterAuth', 'true');
             authenticate();
         } else {
             console.log('Access token found, preparing to play random top song...');
             startDelayedPlayback(() => playRandomTopSong());
-            // Also load albums if not already loaded
             if (topAlbums.length === 0) {
                 loadTopAlbums();
             }
         }
     } else if (event.key === ' ') {
-        event.preventDefault(); // Prevent page scrolling
+        event.preventDefault(); 
         if (getAccessToken()) {
             if (isPlaying) {
-                // If music is playing, pause immediately (no delay)
                 togglePlayPause();
             } else {
-                // If music is paused, start delayed resume
                 startDelayedPlayback(() => togglePlayPause());
             }
         } else {
@@ -210,27 +203,54 @@ function handleKeyPress(event) {
     }
 }
 
-// Load albums when page loads and when user authenticates
-window.addEventListener('load', loadTopAlbums);
+window.addEventListener('load', () => {
+    const token = getAccessToken();
+    if (token) {
+        console.log('Token found on load.');
+        if (sessionStorage.getItem('playAfterAuth') === 'true') {
+            sessionStorage.removeItem('playAfterAuth');
+
+            const maxWaitTime = 10000; // 10 seconds
+            const checkInterval = 500; // 0.5 seconds
+            let timeWaited = 0;
+
+            console.log('Waiting for Spotify Player to be ready for auto-play...');
+
+            const playerReadyInterval = setInterval(() => {
+                if (getPlayerReady()) {
+                    clearInterval(playerReadyInterval);
+                    console.log('Player is ready. Playing random top song automatically.');
+                    startDelayedPlayback(playRandomTopSong);
+                } else {
+                    timeWaited += checkInterval;
+                    if (timeWaited >= maxWaitTime) {
+                        clearInterval(playerReadyInterval);
+                        console.warn('Player did not become ready in time for auto-play.');
+                        alert('Could not start music automatically. Please press "p" again.');
+                    }
+                }
+            }, checkInterval);
+        }
+    }
+    loadTopAlbums();
+});
+
 window.addEventListener('keydown', handleKeyPress);
 init();
 
 function startDelayedPlayback(playbackFunction) {
-    // Clear any existing timer
     if (playbackDelayTimer) {
         clearTimeout(playbackDelayTimer);
     }
     
-    // Set pending state and move arm immediately
     pendingPlayback = true;
     recordArmTargetRotation = recordArmOriginalRotation - (Math.PI / 6);
     console.log('Starting delayed playback - moving arm to playing position');
     
-    // Start the 2-second timer for actual music playback
     playbackDelayTimer = setTimeout(() => {
         playbackFunction();
         pendingPlayback = false;
-        isPlaying = true; // Set playing state since we just triggered playback
+        isPlaying = true;
         console.log('2-second delay complete - music should now be playing');
     }, 2000);
 }
