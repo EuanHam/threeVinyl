@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { getAccessToken, getTopAlbums, initPlayer, getUserProfile, playAlbum, getCurrentPlaybackState } from '../src/spotifyAuth';
+import { getAccessToken, getTopAlbums, initPlayer, getUserProfile, playAlbum, getCurrentPlaybackState, searchAlbums, getAlbumDetails } from '../src/spotifyAuth';
 import { User } from '../src/models';
 
 const formatDuration = (ms) => {
@@ -18,6 +18,9 @@ export default function Home() {
   const [playingAlbum, setPlayingAlbum] = useState(null);
   const [playbackState, setPlaybackState] = useState(null);
   const [playingSide, setPlayingSide] = useState(null);
+  const [isSearching, setIsSearching] = useState(false);
+  const [searchResults, setSearchResults] = useState([]);
+  const [isEditing, setIsEditing] = useState(false);
 
   // Effect to poll for playback state
   useEffect(() => {
@@ -91,7 +94,21 @@ export default function Home() {
 
   const handleAddAlbumToLibrary = async (albumData) => {
     if (user) {
-      const album = user.library.addAlbum(albumData);
+
+      let albumToAdd = albumData;
+      // The album object from search results doesn't have the full track list.
+      // We need to fetch the full album details first if tracks are missing.
+      if (!albumData.tracks || !albumData.tracks.items) {
+          console.log(`Fetching full details for album: ${albumData.name}`);
+          const fullAlbumDetails = await getAlbumDetails(albumData.id);
+          if (!fullAlbumDetails) {
+              alert('Failed to get album details. Please try again.');
+              return;
+          }
+          albumToAdd = fullAlbumDetails;
+      }
+
+      const album = user.library.addAlbum(albumToAdd);
       await user.saveLibrary(); // Now an async operation
       const updatedLibrary = user.library.getAllAlbums();
       setLibraryAlbums(updatedLibrary);
@@ -112,6 +129,35 @@ export default function Home() {
       playAlbum(selectedAlbum, sideLetter);
       setPlayingSide(sideLetter);
       setPlayingAlbum(selectedAlbum);
+    }
+  };
+
+  const handleSearch = async (event) => {
+    const query = event.target.value;
+    if (query.length > 2) {
+      const results = await searchAlbums(query);
+      setSearchResults(results);
+    } else {
+      setSearchResults([]);
+    }
+  };
+
+  const handleRemoveAlbum = async (albumId) => {
+    if (user) {
+      const removed = await user.removeAlbum(albumId); // This now saves to Firestore
+      if (removed) {
+        const updatedLibrary = user.library.getAllAlbums();
+        setLibraryAlbums(updatedLibrary);
+        
+        // If the removed album was the selected one, unselect it
+        if (selectedAlbum && selectedAlbum.spotifyData.id === albumId) {
+            setSelectedAlbum(null);
+        }
+
+        window.dispatchEvent(new CustomEvent('libraryUpdated', { detail: updatedLibrary }));
+      } else {
+          console.warn(`Attempted to remove album ${albumId} but it was not found in the library.`);
+      }
     }
   };
 
@@ -283,6 +329,42 @@ export default function Home() {
         .track-list .track-duration {
           opacity: 0.7;
         }
+        .search-modal {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background-color: rgba(20, 20, 20, 0.98);
+            padding: 30px;
+            border-radius: 15px;
+            z-index: 101;
+            width: 500px;
+            border: 1px solid #333;
+        }
+        .search-modal input {
+            width: 100%;
+            padding: 12px;
+            border-radius: 8px;
+            border: 1px solid #444;
+            background-color: #333;
+            color: white;
+            font-size: 16px;
+            margin-bottom: 20px;
+        }
+        .search-results {
+            max-height: 40vh;
+            overflow-y: auto;
+        }
+        .edit-button {
+            background: #555;
+            color: white;
+            border: none;
+            padding: 8px 12px;
+            border-radius: 20px;
+            cursor: pointer;
+            font-weight: bold;
+            margin-left: auto; /* Pushes it to the right */
+        }
       `}</style>
       <div style={{ position: 'absolute', zIndex: 1, color: 'white', margin: 16, fontFamily: 'Arial, sans-serif', maxWidth: '350px' }}>
         <h1>Threeify</h1>
@@ -324,12 +406,16 @@ export default function Home() {
         {user && !showOnboarding && (
           <div>
             <p style={{ color: '#1db954' }}>✅ Logged in as {user.profile.display_name}!</p>
+            <div style={{display: 'flex', gap: '10px', marginBottom: '10px'}}>
+                <button onClick={() => setIsSearching(true)} className="edit-button">Add Album</button>
+                <button onClick={() => setIsEditing(!isEditing)} className="edit-button">{isEditing ? 'Done' : 'Edit'}</button>
+            </div>
             
             <div className="library-list">
               {libraryAlbums.map((album) => (
                 <div 
-                  key={album.id} 
-                  className={`album-card ${selectedAlbum?.id === album.id ? 'selected' : ''}`}
+                  key={album.spotifyData.id} 
+                  className={`album-card ${selectedAlbum?.spotifyData.id === album.spotifyData.id ? 'selected' : ''}`}
                   onClick={() => handleSelectAlbum(album)}
                 >
                   <img 
@@ -341,6 +427,9 @@ export default function Home() {
                     <div>{album.spotifyData.name}</div>
                     <span>{album.spotifyData.artists[0].name}</span>
                   </div>
+                  {isEditing && (
+                      <button onClick={(e) => { e.stopPropagation(); handleRemoveAlbum(album.spotifyData.id); }} className="edit-button" style={{backgroundColor: '#c0392b'}}>Remove</button>
+                  )}
                 </div>
               ))}
             </div>
@@ -355,6 +444,25 @@ export default function Home() {
           </div>
         )}
       </div>
+
+      {isSearching && (
+        <div className="search-modal">
+            <h2>Find an Album</h2>
+            <input type="text" placeholder="Search by album or artist..." onChange={handleSearch} />
+            <div className="search-results">
+                {searchResults.map(album => (
+                    <div key={album.id} className="album-card" onClick={() => { handleAddAlbumToLibrary(album); setIsSearching(false); }}>
+                        <img src={album.images[2]?.url || album.images[0]?.url} alt={album.name} className="album-card-art" />
+                        <div className="album-card-info">
+                            <div>{album.name}</div>
+                            <span>{album.artists[0].name}</span>
+                        </div>
+                    </div>
+                ))}
+            </div>
+            <button onClick={() => setIsSearching(false)} style={{marginTop: '20px'}}>Close</button>
+        </div>
+      )}
 
       {playbackState && playbackState.is_playing && playingAlbum && playingSide && (
         <div className="now-playing-container">

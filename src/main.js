@@ -158,6 +158,12 @@ function onWindowResize() {
 }
 
 function handleKeyPress(event) {
+    // Ignore keypresses if the user is typing in an input field.
+    const targetNode = event.target.nodeName.toLowerCase();
+    if (targetNode === 'input' || targetNode === 'textarea') {
+        return;
+    }
+
     const key = event.key.toLowerCase();
 
     if (key === 'p') {
