@@ -180,26 +180,6 @@ function handleKeyPress(event) {
         } else {
             console.log('Not authenticated, cannot pause/resume');
         }
-    } else if (['1', '2', '3', '4', '5'].includes(key)) {
-        const albumIndex = parseInt(key) - 1;
-        if (libraryAlbums[albumIndex]) {
-            selectedAlbumIndex = albumIndex;
-            console.log(`Selected album ${key}:`, libraryAlbums[selectedAlbumIndex].spotifyData.name);
-            alert(`Selected: ${libraryAlbums[selectedAlbumIndex].spotifyData.name}. Press 'a', 'b', etc. to play a side.`);
-            // We don't play the whole album automatically anymore, user must select a side.
-            // You could change this to play side A by default if you want:
-            // startDelayedPlayback(() => playAlbum(libraryAlbums[selectedAlbumIndex], 'A'));
-        } else {
-            alert(`No album in your library for key ${key}.`);
-        }
-    } else if (key >= 'a' && key <= 'z') {
-        if (libraryAlbums[selectedAlbumIndex]) {
-            const sideLetter = key.toUpperCase();
-            console.log(`Preparing to play side ${sideLetter} of album:`, libraryAlbums[selectedAlbumIndex].spotifyData.name);
-            startDelayedPlayback(() => playAlbum(libraryAlbums[selectedAlbumIndex], sideLetter));
-        } else {
-            alert('Please select an album first by pressing a number key (1-5).');
-        }
     }
 }
 
