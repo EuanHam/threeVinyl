@@ -1,6 +1,12 @@
 import { useEffect, useState } from 'react';
-import { getAccessToken, getTopAlbums, initPlayer, getUserProfile, playAlbum } from '../src/spotifyAuth';
+import { getAccessToken, getTopAlbums, initPlayer, getUserProfile, playAlbum, getCurrentPlaybackState } from '../src/spotifyAuth';
 import { User } from '../src/models';
+
+const formatDuration = (ms) => {
+  const minutes = Math.floor(ms / 60000);
+  const seconds = ((ms % 60000) / 1000).toFixed(0);
+  return `${minutes}:${seconds < 10 ? '0' : ''}${seconds}`;
+};
 
 export default function Home() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -9,6 +15,25 @@ export default function Home() {
   const [topAlbums, setTopAlbums] = useState([]); // For onboarding
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [selectedAlbum, setSelectedAlbum] = useState(null);
+  const [playingAlbum, setPlayingAlbum] = useState(null);
+  const [playbackState, setPlaybackState] = useState(null);
+  const [playingSide, setPlayingSide] = useState(null);
+
+  // Effect to poll for playback state
+  useEffect(() => {
+    const interval = setInterval(async () => {
+      if (getAccessToken()) {
+        const state = await getCurrentPlaybackState();
+        setPlaybackState(state);
+        if (state && !state.is_playing) {
+          setPlayingAlbum(null);
+          setPlayingSide(null);
+        }
+      }
+    }, 2000); // Check every 2 seconds
+
+    return () => clearInterval(interval);
+  }, []);
 
   // Effect to initialize the app and handle user authentication
   useEffect(() => {
@@ -85,6 +110,8 @@ export default function Home() {
       window.dispatchEvent(new CustomEvent('playbackInitiated'));
       // Call the actual playback function
       playAlbum(selectedAlbum, sideLetter);
+      setPlayingSide(sideLetter);
+      setPlayingAlbum(selectedAlbum);
     }
   };
 
@@ -150,7 +177,30 @@ export default function Home() {
             border-radius: 25px;
             border: 1px solid #333;
             display: flex;
-            gap: 8px;
+            align-items: center;
+            gap: 16px;
+        }
+        .selected-album-info {
+          display: flex;
+          align-items: center;
+          gap: 12px;
+          color: white;
+        }
+        .selected-album-info img {
+          width: 40px;
+          height: 40px;
+          border-radius: 4px;
+        }
+        .selected-album-info div {
+          display: flex;
+          flex-direction: column;
+        }
+        .selected-album-info strong {
+          font-weight: bold;
+        }
+        .selected-album-info span {
+          font-size: 12px;
+          opacity: 0.8;
         }
         .library-list {
           max-height: 350px;
@@ -173,8 +223,8 @@ export default function Home() {
           background-color: #383838;
         }
         .album-card.selected {
-          background-color: #4a4a4a; /* Lighter background */
-          border: 1px solid #4a4a4a;
+          background-color: #555;
+          border-color: #555;
         }
         .album-card-art {
           width: 50px;
@@ -191,6 +241,47 @@ export default function Home() {
         .album-card-info span {
           font-size: 14px;
           opacity: 0.8;
+        }
+        .now-playing-container {
+          position: absolute;
+          top: 16px;
+          left: 50%;
+          transform: translateX(-50%);
+          z-index: 10;
+          color: white;
+          background-color: rgba(20, 20, 20, 0.9);
+          padding: 15px 25px;
+          border-radius: 15px;
+          border: 1px solid #333;
+          text-align: center;
+          width: 400px;
+        }
+        .now-playing-container h3 {
+          margin: 0 0 5px 0;
+          font-size: 16px;
+        }
+        .now-playing-container p {
+          margin: 0 0 15px 0;
+          font-size: 14px;
+          opacity: 0.8;
+        }
+        .track-list {
+          list-style: none;
+          padding: 0;
+          margin: 0;
+          text-align: left;
+        }
+        .track-list li {
+          display: flex;
+          justify-content: space-between;
+          padding: 4px 0;
+          font-size: 14px;
+        }
+        .track-list .track-name {
+          opacity: 0.9;
+        }
+        .track-list .track-duration {
+          opacity: 0.7;
         }
       `}</style>
       <div style={{ position: 'absolute', zIndex: 1, color: 'white', margin: 16, fontFamily: 'Arial, sans-serif', maxWidth: '350px' }}>
@@ -265,8 +356,33 @@ export default function Home() {
         )}
       </div>
 
+      {playbackState && playbackState.is_playing && playingAlbum && playingSide && (
+        <div className="now-playing-container">
+          <h3>Now Playing: {playingAlbum.spotifyData.name}</h3>
+          <p>By {playingAlbum.spotifyData.artists[0].name} - Side {playingSide}</p>
+          <ul className="track-list">
+            {playingAlbum.getSide(playingSide).tracks.map((track, index) => (
+              <li key={track.id}>
+                <span className="track-name">{index + 1}. {track.name}</span>
+                <span className="track-duration">{formatDuration(track.duration_ms)}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
       {selectedAlbum && (
         <div className="bottom-controls-container">
+            <div className="selected-album-info">
+              <img 
+                src={selectedAlbum.spotifyData.images[2]?.url || selectedAlbum.spotifyData.images[0]?.url} 
+                alt={selectedAlbum.spotifyData.name} 
+              />
+              <div>
+                <strong>{selectedAlbum.spotifyData.name}</strong>
+                <span>{selectedAlbum.spotifyData.artists[0].name}</span>
+              </div>
+            </div>
             {renderSideButtons()}
         </div>
       )}
