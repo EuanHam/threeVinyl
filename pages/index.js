@@ -23,7 +23,7 @@ export default function Home() {
         const profile = await getUserProfile();
         if (profile) {
           const currentUser = new User(profile);
-          currentUser.loadLibrary();
+          await currentUser.loadLibrary(); // Now an async operation
           setUser(currentUser);
           const loadedLibraryAlbums = currentUser.library.getAllAlbums();
           setLibraryAlbums(loadedLibraryAlbums);
@@ -57,10 +57,10 @@ export default function Home() {
     };
   }, []);
 
-  const handleAddAlbumToLibrary = (albumData) => {
+  const handleAddAlbumToLibrary = async (albumData) => {
     if (user) {
       user.library.addAlbum(albumData);
-      user.saveLibrary();
+      await user.saveLibrary(); // Now an async operation
       const updatedLibrary = user.library.getAllAlbums();
       setLibraryAlbums(updatedLibrary);
       setTopAlbums(topAlbums.filter(a => a.id !== albumData.id));

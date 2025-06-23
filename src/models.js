@@ -1,4 +1,6 @@
 import { partitionVinylSides } from './utils/partitionVinylSides.js';
+import { db } from './firebase.js';
+import { doc, getDoc, setDoc } from 'firebase/firestore';
 
 /**
  * Represents a single side of a vinyl record.
@@ -110,25 +112,72 @@ class User {
         this.library = new Library();
     }
 
-    // Methods to save/load library to/from localStorage could go here
-    saveLibrary() {
+    // Methods to save/load library to/from Firestore
+    async saveLibrary() {
+        if (!this.profile || !this.profile.id) {
+            console.error("Cannot save library: user profile or ID is missing.");
+            return;
+        }
+        const libraryRef = doc(db, 'libraries', this.profile.id);
+        
+        // Create a lean version of the library data to minimize storage
         const libraryData = {
-            albums: this.library.getAllAlbums().map(album => album.spotifyData)
+            albums: this.library.getAllAlbums().map(album => {
+                const spotifyData = album.spotifyData;
+                return {
+                    id: spotifyData.id,
+                    name: spotifyData.name,
+                    uri: spotifyData.uri,
+                    artist: spotifyData.artists[0]?.name || 'Unknown Artist',
+                    image: spotifyData.images[0]?.url || null,
+                    tracks: spotifyData.tracks.items.map(track => ({
+                        uri: track.uri,
+                        duration_ms: track.duration_ms,
+                        name: track.name,
+                        track_number: track.track_number
+                    }))
+                };
+            })
         };
-        localStorage.setItem(`threeify-library-${this.profile.id}`, JSON.stringify(libraryData));
-        console.log('Library saved to localStorage.');
+
+        try {
+            await setDoc(libraryRef, libraryData);
+            console.log('Lean library saved to Firestore.');
+        } catch (error) {
+            console.error("Error saving library to Firestore:", error);
+        }
     }
 
-    loadLibrary() {
-        const savedData = localStorage.getItem(`threeify-library-${this.profile.id}`);
-        if (savedData) {
-            const libraryData = JSON.parse(savedData);
-            libraryData.albums.forEach(albumData => {
-                this.library.addAlbum(albumData);
-            });
-            console.log('Library loaded from localStorage.');
-        } else {
-            console.log('No saved library found in localStorage.');
+    async loadLibrary() {
+        if (!this.profile || !this.profile.id) {
+            console.error("Cannot load library: user profile or ID is missing.");
+            return;
+        }
+        const libraryRef = doc(db, 'libraries', this.profile.id);
+        try {
+            const docSnap = await getDoc(libraryRef);
+            if (docSnap.exists()) {
+                const libraryData = docSnap.data();
+                if (libraryData.albums) {
+                    libraryData.albums.forEach(minimalAlbumData => {
+                        // Rehydrate the minimal data into the structure the Album class expects
+                        const rehydratedAlbumData = {
+                            ...minimalAlbumData,
+                            artists: [{ name: minimalAlbumData.artist }],
+                            images: [{ url: minimalAlbumData.image }],
+                            tracks: {
+                                items: minimalAlbumData.tracks
+                            }
+                        };
+                        this.library.addAlbum(rehydratedAlbumData);
+                    });
+                }
+                console.log('Library loaded from Firestore and rehydrated.');
+            } else {
+                console.log('No saved library found in Firestore for this user.');
+            }
+        } catch (error) {
+            console.error("Error loading library from Firestore:", error);
         }
     }
 }
