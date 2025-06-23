@@ -59,6 +59,11 @@ export default function Home() {
     };
   }, []);
 
+  const handleSelectAlbum = (album) => {
+    setSelectedAlbum(album);
+    console.log(`Selected album:`, album.spotifyData.name);
+  };
+
   const handleAddAlbumToLibrary = async (albumData) => {
     if (user) {
       const album = user.library.addAlbum(albumData);
@@ -71,11 +76,6 @@ export default function Home() {
       // Select the newly added album automatically
       setSelectedAlbum(album);
     }
-  };
-
-  const handleSelectAlbum = (album) => {
-    setSelectedAlbum(album);
-    console.log(`Selected album:`, album.spotifyData.name);
   };
 
   const handlePlaySide = (sideLetter) => {
@@ -137,36 +137,60 @@ export default function Home() {
           background-color: #383838;
         }
         .side-buttons-container {
-          margin-top: 12px;
+          /* No margin needed here anymore */
         }
-        .selected-album-view {
-          background-color: rgba(20, 20, 20, 0.85);
-          padding: 16px;
-          border-radius: 12px;
-          border: 1px solid #333;
+        .bottom-controls-container {
+            position: fixed;
+            bottom: 30px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 10;
+            background-color: rgba(20, 20, 20, 0.9);
+            padding: 10px 20px;
+            border-radius: 25px;
+            border: 1px solid #333;
+            display: flex;
+            gap: 8px;
+        }
+        .library-list {
+          max-height: 350px;
+          overflow-y: auto;
           margin-top: 16px;
+          padding-right: 10px; /* For scrollbar */
         }
-        .library-grid {
-          display: grid;
-          grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
-          gap: 16px;
-          margin-top: 12px;
-        }
-        .library-item {
-          background-color: #1e1e1e;
-          border-radius: 8px;
+        .album-card {
+          background-color: #282828;
+          border: 1px solid #404040;
           padding: 12px;
-          text-align: center;
+          margin-bottom: 8px;
+          border-radius: 8px;
           cursor: pointer;
-          transition: transform 0.2s, background-color 0.2s;
+          display: flex;
+          align-items: center;
+          transition: background-color 0.2s, border-color 0.2s;
         }
-        .library-item:hover {
-          transform: translateY(-2px);
-          background-color: #2c2c2c;
+        .album-card:hover {
+          background-color: #383838;
         }
-        .library-item.selected {
-          border: 2px solid #1db954;
-          background-color: #2a2a2a;
+        .album-card.selected {
+          background-color: #4a4a4a; /* Lighter background */
+          border: 1px solid #4a4a4a;
+        }
+        .album-card-art {
+          width: 50px;
+          height: 50px;
+          border-radius: 4px;
+          margin-right: 12px;
+        }
+        .album-card-info {
+          flex-grow: 1;
+        }
+        .album-card-info div {
+          font-weight: bold;
+        }
+        .album-card-info span {
+          font-size: 14px;
+          opacity: 0.8;
         }
       `}</style>
       <div style={{ position: 'absolute', zIndex: 1, color: 'white', margin: 16, fontFamily: 'Arial, sans-serif', maxWidth: '350px' }}>
@@ -210,36 +234,28 @@ export default function Home() {
           <div>
             <p style={{ color: '#1db954' }}>✅ Logged in as {user.profile.display_name}!</p>
             
-            <div className="library-grid">
+            <div className="library-list">
               {libraryAlbums.map((album) => (
                 <div 
                   key={album.id} 
-                  className={`library-item ${selectedAlbum?.id === album.id ? 'selected' : ''}`} 
+                  className={`album-card ${selectedAlbum?.id === album.id ? 'selected' : ''}`}
                   onClick={() => handleSelectAlbum(album)}
                 >
-                  <img src={album.spotifyData.images[0]?.url} alt={album.spotifyData.name} />
-                  <p>{album.spotifyData.name}</p>
+                  <img 
+                    src={album.spotifyData.images[2]?.url || album.spotifyData.images[0]?.url} 
+                    alt={album.spotifyData.name} 
+                    className="album-card-art"
+                  />
+                  <div className="album-card-info">
+                    <div>{album.spotifyData.name}</div>
+                    <span>{album.spotifyData.artists[0].name}</span>
+                  </div>
                 </div>
               ))}
             </div>
 
-            {selectedAlbum ? (
-              <div className="selected-album-view">
-                <div style={{ display: 'flex', alignItems: 'center' }}>
-                  <img
-                    src={selectedAlbum.spotifyData.images[0]?.url}
-                    alt={selectedAlbum.spotifyData.name}
-                    style={{ width: '60px', height: '60px', marginRight: '12px', borderRadius: '4px' }}
-                  />
-                  <div>
-                    <div style={{ fontWeight: 'bold' }}>{selectedAlbum.spotifyData.name}</div>
-                    <div style={{ fontSize: '14px', opacity: 0.8 }}>{selectedAlbum.spotifyData.artists[0].name}</div>
-                  </div>
-                </div>
-                {renderSideButtons()}
-              </div>
-            ) : (
-              libraryAlbums.length > 0 && <p>Your library is ready. Select an album to begin.</p>
+            {libraryAlbums.length > 0 && !selectedAlbum && (
+                <p style={{marginTop: '16px'}}>Select an album from your library to begin.</p>
             )}
 
             {libraryAlbums.length === 0 && !showOnboarding && (
@@ -248,6 +264,12 @@ export default function Home() {
           </div>
         )}
       </div>
+
+      {selectedAlbum && (
+        <div className="bottom-controls-container">
+            {renderSideButtons()}
+        </div>
+      )}
     </div>
   );
 }
