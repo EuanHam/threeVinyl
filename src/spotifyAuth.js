@@ -89,6 +89,29 @@ export const getAccessToken = () => {
     return window.localStorage.getItem('spotify_access_token') || '';
 };
 
+export const getUserProfile = async () => {
+    const token = getAccessToken();
+    if (!token) return null;
+
+    try {
+        const response = await fetch('https://api.spotify.com/v1/me', {
+            headers: { 'Authorization': `Bearer ${token}` }
+        });
+        if (response.status === 401) {
+            console.log('Token expired, clearing stored token');
+            window.localStorage.removeItem('spotify_access_token');
+            return null;
+        }
+        if (!response.ok) {
+            throw new Error('Failed to fetch user profile');
+        }
+        return await response.json();
+    } catch (error) {
+        console.error('Error getting user profile:', error);
+        return null;
+    }
+};
+
 export const getAvailableDevices = async () => {
     const token = getAccessToken();
     if (!token) return [];
@@ -176,84 +199,144 @@ export const playRandomTopSong = async () => {
 export const getTopAlbums = async () => {
     const token = getAccessToken();
     if (!token) return [];
-    
+
     try {
-        const response = await fetch('https://api.spotify.com/v1/me/top/tracks?limit=50', {
-            headers: {
-                'Authorization': `Bearer ${token}`
-            }
+        // 1. Get user's top tracks to find out their favorite albums
+        const tracksResponse = await fetch('https://api.spotify.com/v1/me/top/tracks?limit=50', {
+            headers: { 'Authorization': `Bearer ${token}` }
         });
-        
-        if (response.status === 401) {
+
+        if (tracksResponse.status === 401) {
             console.log('Token expired, clearing stored token');
             window.localStorage.removeItem('spotify_access_token');
             return [];
         }
-        
-        const data = await response.json();
-        if (!data.items) return [];
-        
-        // Extract unique albums from top tracks
-        const albums = [];
+
+        const tracksData = await tracksResponse.json();
+        if (!tracksData.items) return [];
+
+        // 2. Extract unique album IDs from the tracks
         const albumIds = new Set();
-        
-        for (const track of data.items) {
-            const album = track.album;
-            if (!albumIds.has(album.id)) {
-                albumIds.add(album.id);
-                albums.push({
-                    id: album.id,
-                    name: album.name,
-                    artist: album.artists[0].name,
-                    uri: album.uri,
-                    image: album.images[0]?.url
-                });
-                
-                if (albums.length >= 5) break;
-            }
+        for (const track of tracksData.items) {
+            albumIds.add(track.album.id);
         }
+
+        // We can only fetch 20 albums at a time. Let's take the first 20.
+        const uniqueAlbumIds = Array.from(albumIds).slice(0, 20);
+
+        if (uniqueAlbumIds.length === 0) {
+            return [];
+        }
+
+        // 3. Fetch the full album details for these IDs
+        const albumsResponse = await fetch(`https://api.spotify.com/v1/albums?ids=${uniqueAlbumIds.join(',')}`, {
+            headers: { 'Authorization': `Bearer ${token}` }
+        });
+
+        if (!albumsResponse.ok) {
+            throw new Error(`Failed to get album details: ${albumsResponse.statusText}`);
+        }
+
+        const albumsData = await albumsResponse.json();
         
-        console.log('Top albums:', albums);
-        return albums;
+        // The API returns an object with an 'albums' array.
+        // Filter out any null albums that might be returned.
+        const fullAlbums = albumsData.albums.filter(album => album);
+
+        // 4. For each album, ensure we have the full track list, handling pagination
+        const detailedAlbums = await Promise.all(fullAlbums.map(async (album) => {
+            if (album.tracks.next) {
+                let tracks = album.tracks.items;
+                let nextUrl = album.tracks.next;
+                while (nextUrl) {
+                    const tracksResponse = await fetch(nextUrl, {
+                        headers: { 'Authorization': `Bearer ${token}` }
+                    });
+                    if (!tracksResponse.ok) break; // Stop if we hit an error
+                    const tracksData = await tracksResponse.json();
+                    tracks = tracks.concat(tracksData.items);
+                    nextUrl = tracksData.next;
+                }
+                album.tracks.items = tracks;
+            }
+            return album;
+        }));
+
+        return detailedAlbums.slice(0, 10); // Return top 10 full album objects
+
     } catch (error) {
         console.error('Error getting top albums:', error);
         return [];
     }
 };
 
-export const playAlbum = async (albumUri) => {
+export const playAlbum = async (albumObject, sideLetter = null) => {
     const token = getAccessToken();
-    if (!token) {
-        console.error('Access token is missing.');
+    if (!playerReady || !deviceId) {
+        console.error('Cannot play album: player not ready.');
+        // Let the UI handle this with a more user-friendly message if needed
         return;
     }
 
-    if (playerReady && deviceId) {
-        console.log(`Using Web Playback SDK to play album ${albumUri} on device ${deviceId}`);
-        try {
-            const response = await fetch(`https://api.spotify.com/v1/me/player/play?device_id=${deviceId}`, {
-                method: 'PUT',
-                body: JSON.stringify({ context_uri: albumUri }),
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${token}`
-                },
-            });
-            if (!response.ok) {
-                console.error('Failed to play album:', response.status, await response.text());
-                if (response.status === 404) {
-                    alert("Spotify player device not found. It might have disconnected. Please try refreshing the page.");
-                    playerReady = false;
-                    deviceId = null;
-                }
-            }
-        } catch (error) {
-            console.error(`Error playing album with SDK:`, error);
+    let urisToPlay = [];
+    let contextUri = null;
+    let playOptions = {};
+
+    if (sideLetter) {
+        const side = albumObject.getSide(sideLetter);
+        if (side && side.tracks.length > 0) {
+            urisToPlay = side.tracks.map(track => track.uri);
+            playOptions.uris = urisToPlay;
+            console.log(`Playing side ${sideLetter} of ${albumObject.spotifyData.name} with tracks:`, urisToPlay);
+        } else {
+            console.warn(`Side ${sideLetter} not found or is empty for album ${albumObject.spotifyData.name}.`);
+            alert(`Side ${sideLetter} is not available for this album.`);
+            return;
         }
     } else {
-        // Fallback removed, show alert instead
-        console.warn('Play command issued but Web Playback SDK not ready. Please wait a moment and try again.');
-        alert('Spotify player is initializing. Please try again in a moment.');
+        // Play the full album from the beginning
+        contextUri = albumObject.spotifyData.uri;
+        playOptions.context_uri = contextUri;
+        playOptions.offset = { position: 0 }; // Ensure it starts from the first track
+        console.log(`Playing full album: ${albumObject.spotifyData.name}`);
+    }
+
+    try {
+        // 1. Set shuffle and repeat mode before playing.
+        // These calls are important for the "album experience".
+        await fetch(`https://api.spotify.com/v1/me/player/set-shuffle?state=false&device_id=${deviceId}`, {
+            method: 'PUT',
+            headers: { 'Authorization': `Bearer ${token}` },
+        });
+        await fetch(`https://api.spotify.com/v1/me/player/set-repeat?state=off&device_id=${deviceId}`, {
+            method: 'PUT',
+            headers: { 'Authorization': `Bearer ${token}` },
+        });
+
+        // 2. Start playback with the chosen context or track URIs.
+        const playResponse = await fetch(`https://api.spotify.com/v1/me/player/play?device_id=${deviceId}`, {
+            method: 'PUT',
+            body: JSON.stringify(playOptions),
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`,
+            },
+        });
+
+        if (!playResponse.ok) {
+            const errorText = await playResponse.text();
+            console.error('Failed to play album/side:', playResponse.status, errorText);
+            if (playResponse.status === 404) {
+                alert("Spotify player device not found. It might have disconnected. Please try refreshing the page.");
+                // Consider updating player state here
+                // playerReady = false;
+                // deviceId = null;
+            }
+        } else {
+            console.log('Playback command sent successfully.');
+        }
+    } catch (error) {
+        console.error('Error during playAlbum execution:', error);
     }
 };
 

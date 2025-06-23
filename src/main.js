@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
-import { authenticate, getAccessToken, playRandomTopSong, getTopAlbums, playAlbum, togglePlayPause, getCurrentPlaybackState, getPlayerReady } from './spotifyAuth';
+import { authenticate, getAccessToken, playRandomTopSong, playAlbum, togglePlayPause, getCurrentPlaybackState, getPlayerReady } from './spotifyAuth';
 
 console.log('Spotify access token:', getAccessToken());
 
@@ -14,7 +14,8 @@ let isPlaying = false;
 let lastPlaybackCheck = 0;
 let pendingPlayback = false;
 let playbackDelayTimer = null;
-let topAlbums = [];
+let libraryAlbums = [];
+let selectedAlbumIndex = 0; // Keep track of the currently selected album
 
 function init() {
     const width = window.innerWidth, height = window.innerHeight;
@@ -90,6 +91,13 @@ function init() {
     // window resize
     window.addEventListener('resize', onWindowResize);
 
+    // Listen for the library being updated from the React UI
+    window.addEventListener('libraryUpdated', (event) => {
+        console.log('Library updated in main.js:', event.detail);
+        libraryAlbums = event.detail;
+        // You could potentially update the 3D scene here if you had visual representations of albums
+    });
+
     animate();
 }
 
@@ -149,16 +157,10 @@ function onWindowResize() {
     renderer.setSize(window.innerWidth, window.innerHeight);
 }
 
-async function loadTopAlbums() {
-    if (getAccessToken()) {
-        topAlbums = await getTopAlbums();
-        console.log('Loaded top albums:', topAlbums);
-        window.dispatchEvent(new CustomEvent('albumsLoaded', { detail: topAlbums }));
-    }
-}
-
 function handleKeyPress(event) {
-    if (event.key === 'p') {
+    const key = event.key.toLowerCase();
+
+    if (key === 'p') {
         if (!getAccessToken()) {
             console.log('No access token, authenticating...');
             sessionStorage.setItem('playAfterAuth', 'true');
@@ -166,11 +168,8 @@ function handleKeyPress(event) {
         } else {
             console.log('Access token found, preparing to play random top song...');
             startDelayedPlayback(() => playRandomTopSong());
-            if (topAlbums.length === 0) {
-                loadTopAlbums();
-            }
         }
-    } else if (event.key === ' ') {
+    } else if (key === ' ') {
         event.preventDefault(); 
         if (getAccessToken()) {
             if (isPlaying) {
@@ -181,24 +180,25 @@ function handleKeyPress(event) {
         } else {
             console.log('Not authenticated, cannot pause/resume');
         }
-    } else if (['1', '2', '3', '4', '5'].includes(event.key)) {
-        const albumIndex = parseInt(event.key) - 1;
-        if (topAlbums.length === 0) {
-            console.log('Albums not loaded yet, loading now...');
-            loadTopAlbums().then(() => {
-                if (topAlbums[albumIndex]) {
-                    console.log(`Preparing to play album ${event.key}:`, topAlbums[albumIndex].name);
-                    startDelayedPlayback(() => playAlbum(topAlbums[albumIndex].uri));
-                } else {
-                    alert(`No album available for key ${event.key}.`);
-                }
-            });
-        } else if (topAlbums[albumIndex]) {
-            console.log(`Preparing to play album ${event.key}:`, topAlbums[albumIndex].name);
-            startDelayedPlayback(() => playAlbum(topAlbums[albumIndex].uri));
+    } else if (['1', '2', '3', '4', '5'].includes(key)) {
+        const albumIndex = parseInt(key) - 1;
+        if (libraryAlbums[albumIndex]) {
+            selectedAlbumIndex = albumIndex;
+            console.log(`Selected album ${key}:`, libraryAlbums[selectedAlbumIndex].spotifyData.name);
+            alert(`Selected: ${libraryAlbums[selectedAlbumIndex].spotifyData.name}. Press 'a', 'b', etc. to play a side.`);
+            // We don't play the whole album automatically anymore, user must select a side.
+            // You could change this to play side A by default if you want:
+            // startDelayedPlayback(() => playAlbum(libraryAlbums[selectedAlbumIndex], 'A'));
         } else {
-            console.log(`No album available for key ${event.key}`);
-            alert(`No album available for key ${event.key}. Only ${topAlbums.length} albums available.`);
+            alert(`No album in your library for key ${key}.`);
+        }
+    } else if (key >= 'a' && key <= 'z') {
+        if (libraryAlbums[selectedAlbumIndex]) {
+            const sideLetter = key.toUpperCase();
+            console.log(`Preparing to play side ${sideLetter} of album:`, libraryAlbums[selectedAlbumIndex].spotifyData.name);
+            startDelayedPlayback(() => playAlbum(libraryAlbums[selectedAlbumIndex], sideLetter));
+        } else {
+            alert('Please select an album first by pressing a number key (1-5).');
         }
     }
 }
@@ -232,7 +232,7 @@ window.addEventListener('load', () => {
             }, checkInterval);
         }
     }
-    loadTopAlbums();
+    // loadTopAlbums(); // This is now handled by the React component
 });
 
 window.addEventListener('keydown', handleKeyPress);
