@@ -112,6 +112,14 @@ class User {
         this.library = new Library();
     }
 
+    async removeAlbum(albumId) {
+        const removed = this.library.removeAlbum(albumId);
+        if (removed) {
+            await this.saveLibrary();
+        }
+        return removed;
+    }
+
     // Methods to save/load library to/from Firestore
     async saveLibrary() {
         if (!this.profile || !this.profile.id) {

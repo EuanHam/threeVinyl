@@ -564,3 +564,62 @@ const takeOver = async (accessToken, deviceId) => {
 export { loadSDK };
 export const getPlayerReady = () => playerReady;
 export const getDeviceId = () => deviceId;
+export const searchAlbums = async (query) => {
+    const token = getAccessToken();
+    if (!token || !query) return [];
+
+    try {
+        const response = await fetch(`https://api.spotify.com/v1/search?q=${encodeURIComponent(query)}&type=album&limit=20`, {
+            headers: { 'Authorization': `Bearer ${token}` }
+        });
+
+        if (!response.ok) {
+            throw new Error('Failed to search for albums');
+        }
+
+        const data = await response.json();
+        return data.albums ? data.albums.items : [];
+    } catch (error) {
+        console.error('Error searching albums:', error);
+        return [];
+    }
+};
+
+export const getAlbumDetails = async (albumId) => {
+    const token = getAccessToken();
+    if (!token) return null;
+
+    try {
+        const response = await fetch(`https://api.spotify.com/v1/albums/${albumId}`, {
+            headers: { 'Authorization': `Bearer ${token}` }
+        });
+
+        if (!response.ok) {
+            throw new Error(`Failed to fetch album details for ID ${albumId}`);
+        }
+
+        const album = await response.json();
+        
+        // Handle track pagination, which is crucial
+        if (album.tracks && album.tracks.next) {
+            let tracks = album.tracks.items;
+            let nextUrl = album.tracks.next;
+            while (nextUrl) {
+                const tracksResponse = await fetch(nextUrl, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                if (!tracksResponse.ok) break; // Stop if we hit an error
+                const tracksData = await tracksResponse.json();
+                tracks = tracks.concat(tracksData.items);
+                nextUrl = tracksData.next;
+            }
+            album.tracks.items = tracks;
+        }
+        
+        return album;
+
+    } catch (error) {
+        console.error('Error getting album details:', error);
+        return null;
+    }
+};
