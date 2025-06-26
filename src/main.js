@@ -22,8 +22,8 @@ function init() {
 
     scene = new THREE.Scene();
     camera = new THREE.PerspectiveCamera(70, width / height, 0.01, 10);
-    camera.position.z = 1.5;
-    camera.position.y = .5;
+    camera.position.z = 3;
+    camera.position.y = 1.5;
     camera.rotateX(-.4);
 
     // lighting
@@ -42,49 +42,35 @@ function init() {
     // orbit controls though remove later for some other control system?
     controls = new OrbitControls(camera, renderer.domElement);
 
+    // Load the record player only
     const loader = new GLTFLoader();
-    console.log('Attempting to load model from: /uturn.glb');
-    
     loader.load(
         '/uturn.glb',
         function (gltf) {
-            console.log('GLTF loaded successfully:', gltf);
             model = gltf.scene;
-            scene.add(model);
-            
             model.scale.set(0.1, 0.1, 0.1);
             model.position.set(0, 0, 0);
-            model.rotation.y = -1 * Math.PI / 2; 
-            
+            model.rotation.y = -1 * Math.PI / 2;
+            scene.add(model);
+
             // recordArmPivot component
             recordArmPivot = model.getObjectByName('recordArmPivot');
             if (recordArmPivot) {
-                console.log('Found recordArmPivot:', recordArmPivot);
-                // store original rotation
                 recordArmOriginalRotation = recordArmPivot.rotation.y;
                 recordArmTargetRotation = recordArmOriginalRotation;
             } else {
-                console.warn('recordArmPivot not found in model');
                 model.traverse((child) => {
                     if (child.name) {
                         console.log('Found object:', child.name);
                     }
                 });
             }
-            
-            console.log('Model added to scene successfully');
         },
         function (progress) {
             console.log('Loading progress:', (progress.loaded / progress.total * 100) + '%');
         },
-        // maybe add some other fallback or just say threeify can't be used
         function (error) {
-            console.error('An error happened loading the model:', error);
-            console.log('Falling back to green box');
-            const boxGeometry = new THREE.BoxGeometry();
-            const boxMaterial = new THREE.MeshBasicMaterial({ color: 0x00ff00 });
-            const box = new THREE.Mesh(boxGeometry, boxMaterial);
-            scene.add(box);
+            console.error('An error happened loading the record player:', error);
         }
     );
 
