@@ -15,13 +15,25 @@ This project is an online record player using Spotify's Playback SDK while being
    ```bash
    npm install
    ```
+   Install Firebase by running:
+   ```bash
+   npm install firebase
+   ```
 
 3. **Configure the Environment**
-   Create a `.env.local` file in the root directory and add your Spotify client ID. This information can be accessed by logging into Spotify's developer dashboard (https://developer.spotify.com/) and creating an app. Set the redirect URI as 'http://127.0.0.1:3000/auth/callback'
+   Create a `.env.local` file in the root directory and add your Spotify client ID. This information can be accessed by logging into Spotify's developer dashboard (https://developer.spotify.com/) and creating an app. Set the redirect URI as 'http://127.0.0.1:3000/auth/callback'. Additionally set up an app in firebase and initialize a Cloud Firestore database. In settings, gather the values for the environment variables below.
    ```
    NEXT_PUBLIC_CLIENT_ID=your_client_id
    SPOTIFY_CLIENT_SECRET=your_client_secret
    NEXT_PUBLIC_REDIRECT_URI=http://127.0.0.1:3000/auth/callback
+
+   NEXT_PUBLIC_FIREBASE_API_KEY=your_api_key
+   NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN=your_auth_domain
+   NEXT_PUBLIC_FIREBASE_PROJECT_ID=your_project_id
+   NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET=your_storage_bucket
+   NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID=your_messaging_sender_id
+   NEXT_PUBLIC_FIREBASE_APP_ID=your_app_id
+
    ```
 
 4. **Run the Application**

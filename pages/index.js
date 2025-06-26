@@ -334,7 +334,8 @@ export default function Home() {
             top: 50%;
             left: 50%;
             transform: translate(-50%, -50%);
-            background-color: rgba(20, 20, 20, 0.98);
+            background-color: rgba(177, 177, 177, 0.50);
+            color:white;
             padding: 30px;
             border-radius: 15px;
             z-index: 101;
@@ -346,8 +347,8 @@ export default function Home() {
             padding: 12px;
             border-radius: 8px;
             border: 1px solid #444;
-            background-color: #333;
-            color: white;
+            background-color: rgba(255, 255, 255, 1);
+            color: black;
             font-size: 16px;
             margin-bottom: 20px;
         }
