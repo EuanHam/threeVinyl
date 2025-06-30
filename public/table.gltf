@@ -1,0 +1,569 @@
+{
+  "asset": {
+    "version": "2.0",
+    "generator": "THREE.GLTFExporter"
+  },
+  "scenes": [
+    {
+      "nodes": [
+        0
+      ]
+    }
+  ],
+  "scene": 0,
+  "nodes": [
+    {
+      "children": [
+        6
+      ],
+      "matrix": [
+        0.01,
+        0,
+        0,
+        0,
+        0,
+        0.01,
+        0,
+        0,
+        0,
+        0,
+        0.01,
+        0,
+        0,
+        0,
+        0,
+        1
+      ]
+    },
+    {
+      "name": "Shape 3",
+      "mesh": 0
+    },
+    {
+      "matrix": [
+        0.5883484054145521,
+        0.39223227027636803,
+        -0.7071067811865475,
+        0,
+        -0.554700196225229,
+        0.8320502943378437,
+        0,
+        0,
+        0.588348405414552,
+        0.392232270276368,
+        0.7071067811865476,
+        0,
+        0,
+        0,
+        0,
+        1
+      ],
+      "name": "Directional Light",
+      "extensions": {
+        "KHR_lights_punctual": {
+          "light": 0
+        }
+      }
+    },
+    {
+      "matrix": [
+        1,
+        0,
+        0,
+        0,
+        0,
+        1,
+        0,
+        0,
+        0,
+        0,
+        1,
+        0,
+        35.227029544799734,
+        20.26510148669406,
+        1099.7600938292233,
+        1
+      ],
+      "name": "Camera",
+      "camera": 0
+    },
+    {
+      "matrix": [
+        0.988031278929814,
+        2.4454497000309106e-8,
+        0.15425366075498992,
+        0,
+        0.049324695729419984,
+        0.9474973283702974,
+        -0.31593652388153676,
+        0,
+        -0.1461549391827599,
+        0.3197636826332035,
+        0.9361569959260763,
+        0,
+        23.37218844372316,
+        171.4238557556198,
+        428.02906657012994,
+        1
+      ],
+      "camera": 1
+    },
+    {
+      "matrix": [
+        1,
+        0,
+        0,
+        0,
+        0,
+        1,
+        0,
+        0,
+        0,
+        0,
+        1,
+        0,
+        0,
+        1,
+        0,
+        1
+      ],
+      "name": "Default Ambient Light"
+    },
+    {
+      "name": "Scene",
+      "children": [
+        1,
+        2,
+        3,
+        4,
+        5
+      ]
+    }
+  ],
+  "bufferViews": [
+    {
+      "buffer": 0,
+      "byteOffset": 0,
+      "byteLength": 576,
+      "target": 34962,
+      "byteStride": 12
+    },
+    {
+      "buffer": 0,
+      "byteOffset": 576,
+      "byteLength": 576,
+      "target": 34962,
+      "byteStride": 12
+    },
+    {
+      "buffer": 0,
+      "byteOffset": 1152,
+      "byteLength": 384,
+      "target": 34962,
+      "byteStride": 8
+    },
+    {
+      "buffer": 0,
+      "byteOffset": 1536,
+      "byteLength": 336,
+      "target": 34963
+    }
+  ],
+  "buffers": [
+    {
+      "byteLength": 1872,
+      "uri": "data:application/octet-stream;base64,AAAWQwAAAAAAAMhCAAAWQwAAAAAAAAAAAAAWQwAAAAAAAMhCAAAWQwAAAAAAAAAAAAAWQwAAoEIAAMhCAAAWQwAAoEIAAAAAAAAWQwAAoEIAAMhCAAAWQwAAoEIAAAAAAAAAAAAAoEIAAMhCAAAAAAAAoEIAAAAAAAAAAAAAoEIAAMhCAAAAAAAAoEIAAAAAAAAAAAAAAAAAAMhCAAAAAAAAAAAAAAAAAAAAAAAAAAAAAMhCAAAAAAAAAAAAAAAAAADAQAAAAAAAAMhCAADAQAAAAAAAAAAAAADAQAAAAAAAAMhCAADAQAAAAAAAAAAAAADAQAAAlEIAAMhCAADAQAAAlEIAAAAAAADAQAAAlEIAAMhCAADAQAAAlEIAAAAAAAAQQwAAlEIAAMhCAAAQQwAAlEIAAAAAAAAQQwAAlEIAAMhCAAAQQwAAlEIAAAAAAAAQQwAAAAAAAMhCAAAQQwAAAAAAAAAAAAAQQwAAAAAAAMhCAAAQQwAAAAAAAAAAAAAWQwAAoEIAAMhCAAAWQwAAoEIAAAAAAAAQQwAAlEIAAMhCAAAQQwAAlEIAAAAAAAAWQwAAAAAAAMhCAAAWQwAAAAAAAAAAAADAQAAAlEIAAMhCAADAQAAAlEIAAAAAAAAAAAAAoEIAAMhCAAAAAAAAoEIAAAAAAADAQAAAAAAAAMhCAADAQAAAAAAAAAAAAAAAAAAAAAAAAMhCAAAAAAAAAAAAAAAAAAAQQwAAAAAAAMhCAAAQQwAAAAAAAAAAAACAPwAAAAAAAAAAAACAPwAAAAAAAACAAAAAgAAAgL8AAAAAAAAAgAAAgL8AAACAAAAAgAAAgD8AAAAAAAAAgAAAgD8AAACAAACAPwAAAAAAAAAAAACAPwAAAAAAAACAAACAvwAAAAAAAAAAAACAvwAAAAAAAACAAAAAgAAAgD8AAAAAAAAAgAAAgD8AAACAAAAAgAAAgL8AAAAAAAAAgAAAgL8AAACAAACAvwAAAAAAAAAAAACAvwAAAAAAAACAAACAPwAAAAAAAAAAAACAPwAAAAAAAACAAAAAgAAAgL8AAAAAAAAAgAAAgL8AAACAAAAAgAAAgL8AAAAAAAAAgAAAgL8AAACAAACAPwAAAAAAAAAAAACAPwAAAAAAAACAAACAvwAAAAAAAAAAAACAvwAAAAAAAACAAAAAgAAAgL8AAAAAAAAAgAAAgL8AAACAAAAAgAAAgL8AAAAAAAAAgAAAgL8AAACAAACAvwAAAAAAAAAAAACAvwAAAAAAAACAAAAAAAAAAAAAAIA/AAAAAAAAAAAAAIC/AAAAAAAAAAAAAIA/AAAAAAAAAAAAAIC/AAAAAAAAAAAAAIA/AAAAAAAAAAAAAIC/AAAAAAAAAAAAAIA/AAAAAAAAAAAAAIC/AAAAAAAAAAAAAIA/AAAAAAAAAAAAAIC/AAAAAAAAAAAAAIA/AAAAAAAAAAAAAIC/AAAAAAAAAAAAAIA/AAAAAAAAAAAAAIC/AAAAAAAAAAAAAIA/AAAAAAAAAAAAAIC/AACAPwAAAAAAAAAAAACAPwAAgD8AAAAAAAAAAAAAgD8AAIA/AACAPwAAgD8AAIA/AACAPwAAgD8AAIA/AACAPwAAAAAAAIA/AACAPwAAAAAAAAAAAACAPwAAgD8AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAK1yM9AAAAAAAAAAAK1yM9CtcjPQAAAAAAAAAACtcjPQrXIz3NzGw/zcxsPwrXIz0K1yM9zcxsP83MbD8K1yM9j8J1P83MbD/NzGw/j8J1P4/CdT/NzGw/zcxsP4/CdT+PwnU/AAAAAAAAAACPwnU/j8J1PwAAAAAAAAAAj8J1PwAAgD8AAIA/AACAPwAAgD+PwnU/zcxsP4/CdT/NzGw/AACAPwAAAAAAAIA/AAAAAArXIz3NzGw/CtcjPc3MbD8AAAAAAACAPwAAAAAAAIA/CtcjPQAAAAAK1yM9AAAAAAAAAAAAAAAAAAAAAAAAAACPwnU/AAAAAI/CdT8AAAAABgAAAAAAAAABAAAABgAAAAEAAAAHAAAACgAAAAQAAAAFAAAACgAAAAUAAAALAAAADgAAAAgAAAAJAAAADgAAAAkAAAAPAAAAEgAAAAwAAAANAAAAEgAAAA0AAAATAAAAFgAAABAAAAARAAAAFgAAABEAAAAXAAAAGgAAABQAAAAVAAAAGgAAABUAAAAbAAAAHgAAABgAAAAZAAAAHgAAABkAAAAfAAAAAgAAABwAAAAdAAAAAgAAAB0AAAADAAAAIAAAACIAAAAkAAAAJQAAACMAAAAhAAAAIAAAACYAAAAiAAAAIwAAACcAAAAhAAAAKAAAACYAAAAgAAAAIQAAACcAAAApAAAAKAAAACoAAAAmAAAAJwAAACsAAAApAAAAKgAAACgAAAAsAAAALQAAACkAAAArAAAAJAAAACIAAAAuAAAALwAAACMAAAAlAAAA"
+    }
+  ],
+  "accessors": [
+    {
+      "bufferView": 0,
+      "componentType": 5126,
+      "count": 48,
+      "max": [
+        150,
+        80,
+        100
+      ],
+      "min": [
+        0,
+        0,
+        0
+      ],
+      "type": "VEC3"
+    },
+    {
+      "bufferView": 1,
+      "componentType": 5126,
+      "count": 48,
+      "max": [
+        1,
+        1,
+        1
+      ],
+      "min": [
+        -1,
+        -1,
+        -1
+      ],
+      "type": "VEC3"
+    },
+    {
+      "bufferView": 2,
+      "componentType": 5126,
+      "count": 48,
+      "max": [
+        1,
+        1
+      ],
+      "min": [
+        0,
+        0
+      ],
+      "type": "VEC2"
+    },
+    {
+      "bufferView": 3,
+      "componentType": 5125,
+      "count": 84,
+      "max": [
+        47
+      ],
+      "min": [
+        0
+      ],
+      "type": "SCALAR"
+    }
+  ],
+  "meshes": [
+    {
+      "primitives": [
+        {
+          "mode": 4,
+          "attributes": {
+            "POSITION": 0,
+            "NORMAL": 1,
+            "TEXCOORD_0": 2
+          },
+          "extras": {
+            "parameters": {
+              "width": 150,
+              "subdivisions": 40,
+              "roundness": 0,
+              "extrudeBevelSize": 0,
+              "extrudeBevelSegments": 3,
+              "windingRule": 0,
+              "height": 80,
+              "depth": 100,
+              "shape": {
+                "points": [
+                  {
+                    "fi": 0.5947114987560925,
+                    "id": "bc07e51c-4237-4fcb-af21-8a6f41cd1a04",
+                    "data": {
+                      "position": [
+                        0,
+                        0
+                      ],
+                      "controlPrevious": {
+                        "position": [
+                          0,
+                          0
+                        ]
+                      },
+                      "controlNext": {
+                        "position": [
+                          0,
+                          0
+                        ]
+                      },
+                      "areControlsDirectionsMirrored": true,
+                      "roundness": 0
+                    }
+                  },
+                  {
+                    "fi": 1.1621596593168637,
+                    "id": "7cf1eba2-a882-40ff-b2f6-77641ab9f716",
+                    "data": {
+                      "position": [
+                        0,
+                        80
+                      ],
+                      "controlPrevious": {
+                        "position": [
+                          0,
+                          80
+                        ]
+                      },
+                      "controlNext": {
+                        "position": [
+                          0,
+                          80
+                        ]
+                      },
+                      "areControlsDirectionsMirrored": true,
+                      "roundness": 0
+                    }
+                  },
+                  {
+                    "fi": 1.613000040960102,
+                    "id": "860d8acb-bcf8-4ba0-a83a-b55fff17a3ff",
+                    "data": {
+                      "position": [
+                        150,
+                        80
+                      ],
+                      "controlPrevious": {
+                        "position": [
+                          150,
+                          80
+                        ]
+                      },
+                      "controlNext": {
+                        "position": [
+                          150,
+                          80
+                        ]
+                      },
+                      "areControlsDirectionsMirrored": true,
+                      "roundness": 0
+                    }
+                  },
+                  {
+                    "fi": 2.0630880916235292,
+                    "id": "9b5ee066-3f49-4f7a-9ae4-0431aaa3319e",
+                    "data": {
+                      "position": [
+                        150,
+                        0
+                      ],
+                      "controlPrevious": {
+                        "position": [
+                          150,
+                          0
+                        ]
+                      },
+                      "controlNext": {
+                        "position": [
+                          150,
+                          0
+                        ]
+                      },
+                      "areControlsDirectionsMirrored": true,
+                      "roundness": 0
+                    }
+                  },
+                  {
+                    "fi": 2.4449754927766794,
+                    "id": "4071da01-5bcf-4922-8abc-b266e0bfd5b4",
+                    "data": {
+                      "position": [
+                        144,
+                        0
+                      ],
+                      "controlPrevious": {
+                        "position": [
+                          144,
+                          0
+                        ]
+                      },
+                      "controlNext": {
+                        "position": [
+                          144,
+                          0
+                        ]
+                      },
+                      "areControlsDirectionsMirrored": true,
+                      "roundness": 0
+                    }
+                  },
+                  {
+                    "fi": 2.8475181947125088,
+                    "id": "2225b537-aa42-458e-b917-9f2554c2b681",
+                    "data": {
+                      "position": [
+                        144,
+                        74
+                      ],
+                      "controlPrevious": {
+                        "position": [
+                          144,
+                          74
+                        ]
+                      },
+                      "controlNext": {
+                        "position": [
+                          144,
+                          74
+                        ]
+                      },
+                      "areControlsDirectionsMirrored": true,
+                      "roundness": 0
+                    }
+                  },
+                  {
+                    "fi": 3.275231584324337,
+                    "id": "7044a449-4aae-4b12-bf3c-c204fe57dbe9",
+                    "data": {
+                      "position": [
+                        6,
+                        74
+                      ],
+                      "controlPrevious": {
+                        "position": [
+                          6,
+                          74
+                        ]
+                      },
+                      "controlNext": {
+                        "position": [
+                          6,
+                          74
+                        ]
+                      },
+                      "areControlsDirectionsMirrored": true,
+                      "roundness": 0
+                    }
+                  },
+                  {
+                    "fi": 3.834775409488963,
+                    "id": "b7b5e9d1-6fb9-4d69-9ff4-87e8db31fb6f",
+                    "data": {
+                      "position": [
+                        6,
+                        0
+                      ],
+                      "controlPrevious": {
+                        "position": [
+                          6,
+                          0
+                        ]
+                      },
+                      "controlNext": {
+                        "position": [
+                          6,
+                          0
+                        ]
+                      },
+                      "areControlsDirectionsMirrored": true,
+                      "roundness": 0
+                    }
+                  }
+                ],
+                "isClosed": true,
+                "roundness": 0,
+                "shapeHoles": []
+              },
+              "type": "VectorGeometry"
+            },
+            "shape": {
+              "points": [
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                80,
+                0,
+                80,
+                0,
+                80,
+                0,
+                150,
+                80,
+                150,
+                80,
+                150,
+                80,
+                0,
+                150,
+                0,
+                150,
+                0,
+                150,
+                0,
+                0,
+                144,
+                0,
+                144,
+                0,
+                144,
+                0,
+                0,
+                144,
+                74,
+                144,
+                74,
+                144,
+                74,
+                0,
+                6,
+                74,
+                6,
+                74,
+                6,
+                74,
+                0,
+                6,
+                0,
+                6,
+                0,
+                6,
+                0,
+                0
+              ],
+              "shapeHoles": [],
+              "isClosed": true,
+              "roundness": 0
+            },
+            "type": "VectorGeometry"
+          },
+          "indices": 3
+        }
+      ]
+    }
+  ],
+  "extensions": {
+    "KHR_lights_punctual": {
+      "lights": [
+        {
+          "name": "Directional Light",
+          "color": [
+            1,
+            1,
+            1
+          ],
+          "intensity": 0.7,
+          "type": "directional"
+        }
+      ]
+    }
+  },
+  "cameras": [
+    {
+      "type": "perspective",
+      "perspective": {
+        "aspectRatio": 1.6,
+        "yfov": 0.7853981633974483,
+        "zfar": 100000,
+        "znear": 70
+      },
+      "name": "Camera"
+    },
+    {
+      "type": "perspective",
+      "perspective": {
+        "aspectRatio": 1.6,
+        "yfov": 0.7853981633974483,
+        "zfar": 100000,
+        "znear": 70
+      }
+    }
+  ],
+  "extensionsUsed": [
+    "KHR_lights_punctual"
+  ]
+}
