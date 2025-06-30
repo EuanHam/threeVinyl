@@ -1,0 +1,283 @@
+import * as THREE from 'three';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+let scene, camera, renderer, controls, shelf, albumMeshes = [], shelfBox, shelfY, shelfZ;
+let canvasParent = null;
+let albumMesh = null;
+let laptop = null;
+let numAlbums = 40; // Default, can be updated
+let toneArm = null;
+let toneArmRestRotation = 0;
+let toneArmPlayRotation = -Math.PI / 6;
+let toneArmAnimating = false;
+let toneArmTarget = 0;
+
+export function initThreeScene(parentElement) {
+    if (renderer) return; // Prevent double init
+    canvasParent = parentElement;
+    const width = window.innerWidth, height = window.innerHeight;
+    camera = new THREE.PerspectiveCamera(70, width / height, 0.01, 10);
+    camera.position.z = 1.5;
+    camera.position.y = .5;
+    camera.rotateX(-.4);
+    scene = new THREE.Scene();
+    const directionalLight = new THREE.DirectionalLight(0xffffff, 1);
+    directionalLight.position.set(1, 1, 2);
+    scene.add(directionalLight);
+    renderer = new THREE.WebGLRenderer({ antialias: true });
+    renderer.outputEncoding = THREE.sRGBEncoding;
+    renderer.setSize(width, height);
+    renderer.setClearColor(0xff0000);
+    parentElement.appendChild(renderer.domElement);
+    controls = new OrbitControls(camera, renderer.domElement);
+    window.addEventListener('resize', onWindowResize);
+    loadModels();
+    animate();
+}
+
+function onWindowResize() {
+    if (!renderer || !camera) return;
+    const width = window.innerWidth, height = window.innerHeight;
+    camera.aspect = width / height;
+    camera.updateProjectionMatrix();
+    renderer.setSize(width, height);
+}
+
+export function setShelfAlbumCount(count) {
+    numAlbums = count;
+    // After models are loaded, this will be used in loadModels
+    // If shelf is already present, reload models
+    if (scene && shelf) {
+        // Remove all album meshes
+        albumMeshes.forEach(mesh => scene.remove(mesh));
+        albumMeshes = [];
+        // Re-add albums
+        addAlbumsToShelf();
+    }
+}
+
+export function setToneArmPlaying(isPlaying) {
+    if (!toneArm) return;
+    toneArmTarget = isPlaying ? toneArmPlayRotation : toneArmRestRotation;
+    toneArmAnimating = true;
+}
+
+async function loadModels() {
+    const loader = new GLTFLoader();
+    const textureLoader = new THREE.TextureLoader();
+    let model, table;
+    // --- Load U-Turn Model ---
+    const uturnGltf = await loader.loadAsync('uturn.glb');
+    model = uturnGltf.scene;
+    model.scale.set(0.1, 0.1, 0.1);
+    model.rotateY(Math.PI * -0.5);
+    // --- Create and place vinyl record ---
+    const originalCylinder = model.getObjectByName("Cylinder");
+    if (originalCylinder) {
+        const vinylTexture = await textureLoader.loadAsync('vinyl.png');
+        const localBox = new THREE.Box3().setFromObject(originalCylinder);
+        const localSize = new THREE.Vector3();
+        localBox.getSize(localSize);
+        const recordRadius = localSize.x / 2;
+        const recordHeight = localSize.y * 1.1;
+        const recordGeometry = new THREE.CylinderGeometry(recordRadius, recordRadius, recordHeight, 32);
+        const blackMaterial = new THREE.MeshStandardMaterial({ color: 0x010101 });
+        const vinylMaterial = new THREE.MeshStandardMaterial({ map: vinylTexture });
+        const record = new THREE.Mesh(recordGeometry, [blackMaterial, vinylMaterial, blackMaterial]);
+        record.position.copy(originalCylinder.position);
+        record.position.y += localSize.y;
+        originalCylinder.parent.add(record);
+    }
+    // --- Load Table Model ---
+    const tableGltf = await loader.loadAsync('table.gltf');
+    table = tableGltf.scene;
+    table.scale.set(2, 2, 2);
+    table.rotation.set(0, 0, 0);
+    table.position.set(-1.5, -2, -2);
+    // --- Apply Wood Texture to Table ---
+    const woodTexture = await textureLoader.loadAsync('wood.jpg');
+    woodTexture.wrapS = woodTexture.wrapT = THREE.RepeatWrapping;
+    woodTexture.repeat.set(2, 2);
+    table.traverse((child) => {
+        if (child.isMesh && child.material) {
+            child.material.map = woodTexture;
+            child.material.needsUpdate = true;
+        }
+    });
+    // --- Position U-Turn on Table ---
+    const tableBox = new THREE.Box3().setFromObject(table);
+    const modelBox = new THREE.Box3().setFromObject(model);
+    const tableTop = tableBox.max.y;
+    const uturnBottom = modelBox.min.y;
+    model.position.set(0.8, tableTop - uturnBottom, -1);
+    scene.add(table);
+    scene.add(model);
+    // --- Load Shelf Model ---
+    const shelfGltf = await loader.loadAsync('shelf.gltf');
+    shelf = shelfGltf.scene;
+    shelf.scale.set(1.5, 1.5, 1.5);
+    shelf.rotation.set(0, 0, 0);
+    // --- Apply Metallic Material to Shelf ---
+    shelf.traverse((child) => {
+        if (child.isMesh) {
+            child.material = new THREE.MeshStandardMaterial({
+                color: 0x222222,
+                metalness: 1.0,
+                roughness: 0.05,
+                emissive: 0x222222,
+                emissiveIntensity: 0.7
+            });
+        }
+    });
+    // --- Position Shelf ---
+    const shelfBoxObj = new THREE.Box3().setFromObject(shelf);
+    const shelfMin = shelfBoxObj.min;
+    const shelfMax = shelfBoxObj.max;
+    const tableMin = tableBox.min;
+    const tableMax = tableBox.max;
+    shelfY = tableMin.y - shelfMin.y;
+    shelfZ = tableMin.z - (shelfMax.z - shelfMin.z) / 2 - 1;
+    shelf.position.set(
+        (tableMin.x + tableMax.x) / 2 + 0.5 - (shelfMax.x + shelfMin.x) / 2,
+        shelfY,
+        shelfZ
+    );
+    scene.add(shelf);
+    shelfBox = shelfBoxObj;
+    // --- Add Albums to Shelf ---
+    addAlbumsToShelf();
+    // --- Album Cover (detailed) ---
+    const albumTexture = await textureLoader.loadAsync("https://upload.wikimedia.org/wikipedia/en/5/54/Herbie-Hancock-Head-Hunters.png");
+    const materials = [
+        new THREE.MeshStandardMaterial({ color: 0x111111 }),
+        new THREE.MeshStandardMaterial({ color: 0x111111 }),
+        new THREE.MeshStandardMaterial({ color: 0x111111 }),
+        new THREE.MeshStandardMaterial({ color: 0x111111 }),
+        new THREE.MeshStandardMaterial({ map: albumTexture }),
+        new THREE.MeshStandardMaterial({ color: 0x111111 })
+    ];
+    const albumGeometry = new THREE.BoxGeometry(1, 1, 0.05);
+    albumMesh = new THREE.Mesh(albumGeometry, materials);
+    const shelfCenterX = (shelfBox.min.x + shelfBox.max.x) / 2 - 1.3;
+    albumMesh.position.set(shelfCenterX + .6, shelfY + 2.8, shelfZ);
+    scene.add(albumMesh);
+    // --- Room, Floor, Ceiling, Lighting, Walls, Laptop ---
+    // --- Add Floor ---
+    const wallHeight = 5, wallThickness = 0.05, wallExtra = 2;
+    const shelfBack = shelf.position.z + (shelfMax.z - shelfMin.z) / 2;
+    const backWallOffset = Math.abs(tableMin.z - shelfBack) + 1;
+    const expandedMinX = tableMin.x - wallExtra;
+    const expandedMaxX = tableMax.x + wallExtra;
+    const expandedWidth = expandedMaxX - expandedMinX;
+    const expandedMinZ = shelfBack - backWallOffset;
+    const expandedMaxZ = tableMax.z + wallExtra;
+    const expandedDepth = expandedMaxZ - expandedMinZ;
+    const floorY = tableMin.y;
+    const floorGeometry = new THREE.BoxGeometry(expandedWidth, 0.05, expandedDepth);
+    const floorMaterial = new THREE.MeshStandardMaterial({ color: 0xdddddd });
+    const floor = new THREE.Mesh(floorGeometry, floorMaterial);
+    floor.position.set((expandedMinX + expandedMaxX) / 2, floorY - 0.025, (expandedMinZ + expandedMaxZ) / 2);
+    scene.add(floor);
+    // --- Add Ceiling and Light ---
+    const ceilingY = floorY + wallHeight;
+    const ceilingGeometry = new THREE.BoxGeometry(expandedWidth, 0.05, expandedDepth);
+    const ceilingMaterial = new THREE.MeshStandardMaterial({ color: 0xe0e0e0 });
+    const ceiling = new THREE.Mesh(ceilingGeometry, ceilingMaterial);
+    ceiling.position.set((expandedMinX + expandedMaxX) / 2, ceilingY + 0.025, (expandedMinZ + expandedMaxZ) / 2);
+    scene.add(ceiling);
+    const lightSphereGeometry = new THREE.SphereGeometry(0.2, 32, 32);
+    const lightSphereMaterial = new THREE.MeshStandardMaterial({ color: 0x0509f7, emissive: 0x0509f7, emissiveIntensity: 30 });
+    const lightSphere = new THREE.Mesh(lightSphereGeometry, lightSphereMaterial);
+    lightSphere.position.set((expandedMinX + expandedMaxX) / 2, ceilingY + 0.1, (expandedMinZ + expandedMaxZ) / 2);
+    scene.add(lightSphere);
+    const bluePointLight = new THREE.PointLight(0x0509f7, 10, 10);
+    bluePointLight.position.copy(lightSphere.position);
+    scene.add(bluePointLight);
+    // --- Add Walls ---
+    const wallTexture = await textureLoader.loadAsync('wall.jpg');
+    wallTexture.wrapS = wallTexture.wrapT = THREE.RepeatWrapping;
+    wallTexture.repeat.set(expandedWidth / 2, wallHeight / 2);
+    const wallMaterial = new THREE.MeshStandardMaterial({ map: wallTexture });
+    const backWallGeometry = new THREE.BoxGeometry(expandedWidth, wallHeight + 5, wallThickness);
+    const backWall = new THREE.Mesh(backWallGeometry, wallMaterial);
+    backWall.position.set((expandedMinX + expandedMaxX) / 2, floorY + wallHeight / 2, expandedMinZ + wallThickness / 2);
+    scene.add(backWall);
+    const leftWallGeometry = new THREE.BoxGeometry(wallThickness, wallHeight, expandedDepth);
+    const leftWall = new THREE.Mesh(leftWallGeometry, wallMaterial);
+    leftWall.position.set(expandedMinX - wallThickness / 2, floorY + wallHeight / 2, (expandedMinZ + expandedMaxZ) / 2);
+    scene.add(leftWall);
+    const rightWallGeometry = new THREE.BoxGeometry(wallThickness, wallHeight, expandedDepth);
+    const rightWall = new THREE.Mesh(rightWallGeometry, wallMaterial);
+    rightWall.position.set(expandedMaxX + wallThickness / 2, floorY + wallHeight / 2, (expandedMinZ + expandedMaxZ) / 2);
+    scene.add(rightWall);
+    // --- Load Laptop Model ---
+    const laptopGltf = await loader.loadAsync('laptop.gltf');
+    laptop = laptopGltf.scene;
+    laptop.scale.set(0.25, 0.25, 0.25);
+    const laptopX = tableMin.x + 0.7;
+    const laptopZ = (tableMin.z + tableMax.z) / 2;
+    const laptopY = tableTop + 0.35;
+    laptop.position.set(laptopX, laptopY, laptopZ);
+    // --- Apply Materials to Laptop ---
+    const screenTexture = await textureLoader.loadAsync('minecraft.jpg');
+    laptop.traverse((child) => {
+        if (child.isMesh) {
+            if (child.name && child.name.toLowerCase().includes('screen')) {
+                const screenMaterial = new THREE.MeshStandardMaterial({ color: 0x000000 });
+                child.material = screenMaterial;
+                screenTexture.encoding = THREE.sRGBEncoding;
+                screenTexture.flipY = true;
+                screenMaterial.map = screenTexture;
+                screenMaterial.emissiveMap = screenTexture;
+                screenMaterial.emissive = new THREE.Color(0xffffff);
+                screenMaterial.emissiveIntensity = 1;
+                screenMaterial.needsUpdate = true;
+            } else {
+                child.material = new THREE.MeshStandardMaterial({ color: 0xffffff, metalness: 1.0, roughness: 0.15 });
+            }
+        }
+    });
+    scene.add(laptop);
+    // Find the tone arm (recordArmPivot)
+    toneArm = model.getObjectByName('recordArmPivot');
+    if (toneArm) {
+        toneArmRestRotation = toneArm.rotation.y;
+        toneArmPlayRotation = toneArmRestRotation - (Math.PI / 6);
+        toneArmTarget = toneArmRestRotation;
+    }
+}
+
+function addAlbumsToShelf() {
+    if (!shelf || !shelfBox) return;
+    // Remove old album meshes
+    albumMeshes.forEach(mesh => scene.remove(mesh));
+    albumMeshes = [];
+    // Add new album meshes
+    const albumDepth = 0.05, albumHeight = 1, albumWidth = 1;
+    const geometry = new THREE.BoxGeometry(albumDepth, albumHeight, albumWidth);
+    const shelfMax = shelfBox.max;
+    for (let i = 0; i < Math.max(0, numAlbums - 1); i++) {
+        const material = new THREE.MeshStandardMaterial({ color: 0x222222 });
+        const mesh = new THREE.Mesh(geometry, material);
+        mesh.position.set(shelfMax.x - 0.1 - (i * albumDepth), shelfY + 2.8, shelfZ);
+        scene.add(mesh);
+        albumMeshes.push(mesh);
+    }
+}
+
+function animate() {
+    requestAnimationFrame(animate);
+    // Animate tone arm
+    if (toneArm && toneArmAnimating) {
+        const diff = toneArmTarget - toneArm.rotation.y;
+        if (Math.abs(diff) > 0.001) {
+            toneArm.rotation.y += diff * 0.1;
+        } else {
+            toneArm.rotation.y = toneArmTarget;
+            toneArmAnimating = false;
+        }
+    }
+    controls.update();
+    renderer.render(scene, camera);
+}

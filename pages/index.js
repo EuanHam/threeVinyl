@@ -1,6 +1,7 @@
-import { useEffect, useState } from 'react';
-import { getAccessToken, getTopAlbums, initPlayer, getUserProfile, playAlbum, getCurrentPlaybackState, searchAlbums, getAlbumDetails } from '../src/spotifyAuth';
+import { useEffect, useRef, useState } from 'react';
+import { getAccessToken, getTopAlbums, initPlayer, getUserProfile, playAlbum, getCurrentPlaybackState, searchAlbums, getAlbumDetails, togglePlayPause } from '../src/spotifyAuth';
 import { User } from '../src/models';
+import { initThreeScene, setShelfAlbumCount, setToneArmPlaying } from '../src/threeScene';
 
 const formatDuration = (ms) => {
   const minutes = Math.floor(ms / 60000);
@@ -21,6 +22,7 @@ export default function Home() {
   const [isSearching, setIsSearching] = useState(false);
   const [searchResults, setSearchResults] = useState([]);
   const [isEditing, setIsEditing] = useState(false);
+  const threeBgRef = useRef(null);
 
   // Effect to poll for playback state
   useEffect(() => {
@@ -41,10 +43,6 @@ export default function Home() {
   // Effect to initialize the app and handle user authentication
   useEffect(() => {
     const init = async () => {
-      // Await the dynamic import to ensure main.js is loaded and its event listeners are active
-      // before we proceed with any logic that might dispatch events.
-      await import('../src/main');
-
       const hasToken = !!getAccessToken();
       setIsAuthenticated(hasToken);
 
@@ -86,6 +84,43 @@ export default function Home() {
       window.removeEventListener('storage', onStorage);
     };
   }, []);
+
+  // Mount Three.js scene as background
+  useEffect(() => {
+    if (threeBgRef.current) {
+      initThreeScene(threeBgRef.current);
+    }
+    // Add global keydown handler for spacebar and 'p'
+    const handleKeyDown = (event) => {
+      // Only trigger if not focused on input/textarea
+      const target = event.target;
+      if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA')) return;
+      if (event.key === ' ' && !event.repeat) {
+        event.preventDefault();
+        if (isAuthenticated) {
+          togglePlayPause();
+        }
+      } else if (event.key.toLowerCase() === 'p' && !event.repeat) {
+        event.preventDefault();
+        if (!isAuthenticated) {
+          // PKCE authentication flow
+          import('../src/spotifyAuth').then(mod => mod.authenticate());
+        }
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isAuthenticated]);
+
+  // Sync album count with shelf
+  useEffect(() => {
+    setShelfAlbumCount(libraryAlbums.length);
+  }, [libraryAlbums.length]);
+
+  // Animate tone arm on playback state change
+  useEffect(() => {
+    setToneArmPlaying(playbackState && playbackState.is_playing);
+  }, [playbackState && playbackState.is_playing]);
 
   const handleSelectAlbum = (album) => {
     setSelectedAlbum(album);
@@ -193,308 +228,319 @@ export default function Home() {
   };
 
   return (
-    <div>
-      <style jsx global>{`
-        .side-button {
-          background-color: #282828;
-          border: 1px solid #404040;
-          color: white;
-          padding: 8px 16px;
-          margin: 4px;
-          border-radius: 20px;
-          cursor: pointer;
-          font-weight: bold;
-          transition: background-color 0.2s;
-        }
-        .side-button:hover {
-          background-color: #383838;
-        }
-        .side-buttons-container {
-          /* No margin needed here anymore */
-        }
-        .bottom-controls-container {
-            position: fixed;
-            bottom: 30px;
-            left: 50%;
-            transform: translateX(-50%);
-            z-index: 10;
-            background-color: rgba(20, 20, 20, 0.9);
-            padding: 10px 20px;
-            border-radius: 25px;
-            border: 1px solid #333;
-            display: flex;
-            align-items: center;
-            gap: 16px;
-        }
-        .selected-album-info {
-          display: flex;
-          align-items: center;
-          gap: 12px;
-          color: white;
-        }
-        .selected-album-info img {
-          width: 40px;
-          height: 40px;
-          border-radius: 4px;
-        }
-        .selected-album-info div {
-          display: flex;
-          flex-direction: column;
-        }
-        .selected-album-info strong {
-          font-weight: bold;
-        }
-        .selected-album-info span {
-          font-size: 12px;
-          opacity: 0.8;
-        }
-        .library-list {
-          max-height: 350px;
-          overflow-y: auto;
-          margin-top: 16px;
-          padding-right: 10px; /* For scrollbar */
-        }
-        .album-card {
-          background-color: #282828;
-          border: 1px solid #404040;
-          padding: 12px;
-          margin-bottom: 8px;
-          border-radius: 8px;
-          cursor: pointer;
-          display: flex;
-          align-items: center;
-          transition: background-color 0.2s, border-color 0.2s;
-        }
-        .album-card:hover {
-          background-color: #383838;
-        }
-        .album-card.selected {
-          background-color: #555;
-          border-color: #555;
-        }
-        .album-card-art {
-          width: 50px;
-          height: 50px;
-          border-radius: 4px;
-          margin-right: 12px;
-        }
-        .album-card-info {
-          flex-grow: 1;
-        }
-        .album-card-info div {
-          font-weight: bold;
-        }
-        .album-card-info span {
-          font-size: 14px;
-          opacity: 0.8;
-        }
-        .now-playing-container {
-          position: absolute;
-          top: 16px;
-          left: 50%;
-          transform: translateX(-50%);
-          z-index: 10;
-          color: white;
-          background-color: rgba(20, 20, 20, 0.9);
-          padding: 15px 25px;
-          border-radius: 15px;
-          border: 1px solid #333;
-          text-align: center;
-          width: 400px;
-        }
-        .now-playing-container h3 {
-          margin: 0 0 5px 0;
-          font-size: 16px;
-        }
-        .now-playing-container p {
-          margin: 0 0 15px 0;
-          font-size: 14px;
-          opacity: 0.8;
-        }
-        .track-list {
-          list-style: none;
-          padding: 0;
-          margin: 0;
-          text-align: left;
-        }
-        .track-list li {
-          display: flex;
-          justify-content: space-between;
-          padding: 4px 0;
-          font-size: 14px;
-        }
-        .track-list .track-name {
-          opacity: 0.9;
-        }
-        .track-list .track-duration {
-          opacity: 0.7;
-        }
-        .search-modal {
-            position: fixed;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            background-color: rgba(177, 177, 177, 0.50);
-            color:white;
-            padding: 30px;
-            border-radius: 15px;
-            z-index: 101;
-            width: 500px;
-            border: 1px solid #333;
-        }
-        .search-modal input {
-            width: 100%;
-            padding: 12px;
-            border-radius: 8px;
-            border: 1px solid #444;
-            background-color: rgba(255, 255, 255, 1);
-            color: black;
-            font-size: 16px;
-            margin-bottom: 20px;
-        }
-        .search-results {
-            max-height: 40vh;
-            overflow-y: auto;
-        }
-        .edit-button {
-            background: #555;
+    <>
+      <div ref={threeBgRef} style={{
+        position: 'fixed',
+        top: 0,
+        left: 0,
+        width: '100vw',
+        height: '100vh',
+        zIndex: 0,
+        overflow: 'hidden',
+      }} />
+      <div style={{ position: 'relative', zIndex: 1 }}>
+        <style jsx global>{`
+          .side-button {
+            background-color: #282828;
+            border: 1px solid #404040;
             color: white;
-            border: none;
-            padding: 8px 12px;
+            padding: 8px 16px;
+            margin: 4px;
             border-radius: 20px;
             cursor: pointer;
             font-weight: bold;
-            margin-left: auto; /* Pushes it to the right */
-        }
-      `}</style>
-      <div style={{ position: 'absolute', zIndex: 1, color: 'white', margin: 16, fontFamily: 'Arial, sans-serif', maxWidth: '350px' }}>
-        <h1>Threeify</h1>
-        {!isAuthenticated && <p>Press "p" to authenticate and play music</p>}
-        
-        {isAuthenticated && !user && <p>Loading user profile...</p>}
+            transition: background-color 0.2s;
+          }
+          .side-button:hover {
+            background-color: #383838;
+          }
+          .side-buttons-container {
+            /* No margin needed here anymore */
+          }
+          .bottom-controls-container {
+              position: fixed;
+              bottom: 30px;
+              left: 50%;
+              transform: translateX(-50%);
+              z-index: 10;
+              background-color: rgba(20, 20, 20, 0.9);
+              padding: 10px 20px;
+              border-radius: 25px;
+              border: 1px solid #333;
+              display: flex;
+              align-items: center;
+              gap: 16px;
+          }
+          .selected-album-info {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            color: white;
+          }
+          .selected-album-info img {
+            width: 40px;
+            height: 40px;
+            border-radius: 4px;
+          }
+          .selected-album-info div {
+            display: flex;
+            flex-direction: column;
+          }
+          .selected-album-info strong {
+            font-weight: bold;
+          }
+          .selected-album-info span {
+            font-size: 12px;
+            opacity: 0.8;
+          }
+          .library-list {
+            max-height: 350px;
+            overflow-y: auto;
+            margin-top: 16px;
+            padding-right: 10px; /* For scrollbar */
+          }
+          .album-card {
+            background-color: #282828;
+            border: 1px solid #404040;
+            padding: 12px;
+            margin-bottom: 8px;
+            border-radius: 8px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            transition: background-color 0.2s, border-color 0.2s;
+          }
+          .album-card:hover {
+            background-color: #383838;
+          }
+          .album-card.selected {
+            background-color: #555;
+            border-color: #555;
+          }
+          .album-card-art {
+            width: 50px;
+            height: 50px;
+            border-radius: 4px;
+            margin-right: 12px;
+          }
+          .album-card-info {
+            flex-grow: 1;
+          }
+          .album-card-info div {
+            font-weight: bold;
+          }
+          .album-card-info span {
+            font-size: 14px;
+            opacity: 0.8;
+          }
+          .now-playing-container {
+            position: absolute;
+            top: 16px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 10;
+            color: white;
+            background-color: rgba(20, 20, 20, 0.9);
+            padding: 15px 25px;
+            border-radius: 15px;
+            border: 1px solid #333;
+            text-align: center;
+            width: 400px;
+          }
+          .now-playing-container h3 {
+            margin: 0 0 5px 0;
+            font-size: 16px;
+          }
+          .now-playing-container p {
+            margin: 0 0 15px 0;
+            font-size: 14px;
+            opacity: 0.8;
+          }
+          .track-list {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+            text-align: left;
+          }
+          .track-list li {
+            display: flex;
+            justify-content: space-between;
+            padding: 4px 0;
+            font-size: 14px;
+          }
+          .track-list .track-name {
+            opacity: 0.9;
+          }
+          .track-list .track-duration {
+            opacity: 0.7;
+          }
+          .search-modal {
+              position: fixed;
+              top: 50%;
+              left: 50%;
+              transform: translate(-50%, -50%);
+              background-color: rgba(177, 177, 177, 0.50);
+              color:white;
+              padding: 30px;
+              border-radius: 15px;
+              z-index: 101;
+              width: 500px;
+              border: 1px solid #333;
+          }
+          .search-modal input {
+              width: 100%;
+              padding: 12px;
+              border-radius: 8px;
+              border: 1px solid #444;
+              background-color: rgba(255, 255, 255, 1);
+              color: black;
+              font-size: 16px;
+              margin-bottom: 20px;
+          }
+          .search-results {
+              max-height: 40vh;
+              overflow-y: auto;
+          }
+          .edit-button {
+              background: #555;
+              color: white;
+              border: none;
+              padding: 8px 12px;
+              border-radius: 20px;
+              cursor: pointer;
+              font-weight: bold;
+              margin-left: auto; /* Pushes it to the right */
+          }
+        `}</style>
+        <div style={{ position: 'absolute', zIndex: 1, color: 'white', margin: 16, fontFamily: 'Arial, sans-serif', maxWidth: '350px' }}>
+          <h1>Threeify</h1>
+          {!isAuthenticated && <p>Press "p" to authenticate and play music</p>}
+          
+          {isAuthenticated && !user && <p>Loading user profile...</p>}
 
-        {user && showOnboarding && (
-          <div style={{
-            position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%, -50%)',
-            backgroundColor: 'rgba(20,20,20,0.95)', padding: '30px', borderRadius: '15px',
-            color: 'white', zIndex: 100, textAlign: 'center', border: '1px solid #333',
-            maxHeight: '80vh', overflowY: 'auto'
-          }}>
-            <h2>Welcome to Threeify!</h2>
-            <p style={{ opacity: 0.8, marginBottom: '25px' }}>Here are some of your top albums. Add them to your virtual shelf to get started.</p>
-            <div>
-              {topAlbums.map(album => (
-                <div key={album.id} style={{ display: 'flex', alignItems: 'center', marginBottom: '15px', textAlign: 'left' }}>
-                  <img src={album.images[0]?.url} alt={album.name} style={{ width: '50px', height: '50px', marginRight: '15px', borderRadius: '4px' }} />
-                  <div style={{ flexGrow: 1 }}>
-                    <div style={{ fontWeight: 'bold' }}>{album.name}</div>
-                    <div style={{ fontSize: '14px', opacity: 0.7 }}>{album.artists[0].name}</div>
+          {user && showOnboarding && (
+            <div style={{
+              position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%, -50%)',
+              backgroundColor: 'rgba(20,20,20,0.95)', padding: '30px', borderRadius: '15px',
+              color: 'white', zIndex: 100, textAlign: 'center', border: '1px solid #333',
+              maxHeight: '80vh', overflowY: 'auto'
+            }}>
+              <h2>Welcome to Threeify!</h2>
+              <p style={{ opacity: 0.8, marginBottom: '25px' }}>Here are some of your top albums. Add them to your virtual shelf to get started.</p>
+              <div>
+                {topAlbums.map(album => (
+                  <div key={album.id} style={{ display: 'flex', alignItems: 'center', marginBottom: '15px', textAlign: 'left' }}>
+                    <img src={album.images[0]?.url} alt={album.name} style={{ width: '50px', height: '50px', marginRight: '15px', borderRadius: '4px' }} />
+                    <div style={{ flexGrow: 1 }}>
+                      <div style={{ fontWeight: 'bold' }}>{album.name}</div>
+                      <div style={{ fontSize: '14px', opacity: 0.7 }}>{album.artists[0].name}</div>
+                    </div>
+                    <button onClick={() => handleAddAlbumToLibrary(album)} style={{
+                      background: '#1db954', color: 'white', border: 'none', padding: '8px 12px',
+                      borderRadius: '20px', cursor: 'pointer', fontWeight: 'bold'
+                    }}>Add</button>
                   </div>
-                  <button onClick={() => handleAddAlbumToLibrary(album)} style={{
-                    background: '#1db954', color: 'white', border: 'none', padding: '8px 12px',
-                    borderRadius: '20px', cursor: 'pointer', fontWeight: 'bold'
-                  }}>Add</button>
-                </div>
-              ))}
+                ))}
+              </div>
+              <button onClick={handleFinishOnboarding} style={{
+                marginTop: '20px', background: '#555', color: 'white', border: 'none',
+                padding: '10px 20px', borderRadius: '20px', cursor: 'pointer'
+              }}>Done</button>
             </div>
-            <button onClick={handleFinishOnboarding} style={{
-              marginTop: '20px', background: '#555', color: 'white', border: 'none',
-              padding: '10px 20px', borderRadius: '20px', cursor: 'pointer'
-            }}>Done</button>
+          )}
+
+          {user && !showOnboarding && (
+            <div>
+              <p style={{ color: '#1db954' }}>✅ Logged in as {user.profile.display_name}!</p>
+              <div style={{display: 'flex', gap: '10px', marginBottom: '10px'}}>
+                  <button onClick={() => setIsSearching(true)} className="edit-button">Add Album</button>
+                  <button onClick={() => setIsEditing(!isEditing)} className="edit-button">{isEditing ? 'Done' : 'Edit'}</button>
+              </div>
+              
+              <div className="library-list">
+                {libraryAlbums.map((album) => (
+                  <div 
+                    key={album.spotifyData.id} 
+                    className={`album-card ${selectedAlbum?.spotifyData.id === album.spotifyData.id ? 'selected' : ''}`}
+                    onClick={() => handleSelectAlbum(album)}
+                  >
+                    <img 
+                      src={album.spotifyData.images[2]?.url || album.spotifyData.images[0]?.url} 
+                      alt={album.spotifyData.name} 
+                      className="album-card-art"
+                    />
+                    <div className="album-card-info">
+                      <div>{album.spotifyData.name}</div>
+                      <span>{album.spotifyData.artists[0].name}</span>
+                    </div>
+                    {isEditing && (
+                        <button onClick={(e) => { e.stopPropagation(); handleRemoveAlbum(album.spotifyData.id); }} className="edit-button" style={{backgroundColor: '#c0392b'}}>Remove</button>
+                    )}
+                  </div>
+                ))}
+              </div>
+
+              {libraryAlbums.length > 0 && !selectedAlbum && (
+                  <p style={{marginTop: '16px'}}>Select an album from your library to begin.</p>
+              )}
+
+              {libraryAlbums.length === 0 && !showOnboarding && (
+                  <p>Your library is empty. Find some albums to add!</p>
+              )}
+            </div>
+          )}
+        </div>
+
+        {isSearching && (
+          <div className="search-modal">
+              <h2>Find an Album</h2>
+              <input type="text" placeholder="Search by album or artist..." onChange={handleSearch} />
+              <div className="search-results">
+                  {searchResults.map(album => (
+                      <div key={album.id} className="album-card" onClick={() => { handleAddAlbumToLibrary(album); setIsSearching(false); }}>
+                          <img src={album.images[2]?.url || album.images[0]?.url} alt={album.name} className="album-card-art" />
+                          <div className="album-card-info">
+                              <div>{album.name}</div>
+                              <span>{album.artists[0].name}</span>
+                          </div>
+                      </div>
+                  ))}
+              </div>
+              <button onClick={() => setIsSearching(false)} style={{marginTop: '20px'}}>Close</button>
           </div>
         )}
 
-        {user && !showOnboarding && (
-          <div>
-            <p style={{ color: '#1db954' }}>✅ Logged in as {user.profile.display_name}!</p>
-            <div style={{display: 'flex', gap: '10px', marginBottom: '10px'}}>
-                <button onClick={() => setIsSearching(true)} className="edit-button">Add Album</button>
-                <button onClick={() => setIsEditing(!isEditing)} className="edit-button">{isEditing ? 'Done' : 'Edit'}</button>
-            </div>
-            
-            <div className="library-list">
-              {libraryAlbums.map((album) => (
-                <div 
-                  key={album.spotifyData.id} 
-                  className={`album-card ${selectedAlbum?.spotifyData.id === album.spotifyData.id ? 'selected' : ''}`}
-                  onClick={() => handleSelectAlbum(album)}
-                >
-                  <img 
-                    src={album.spotifyData.images[2]?.url || album.spotifyData.images[0]?.url} 
-                    alt={album.spotifyData.name} 
-                    className="album-card-art"
-                  />
-                  <div className="album-card-info">
-                    <div>{album.spotifyData.name}</div>
-                    <span>{album.spotifyData.artists[0].name}</span>
-                  </div>
-                  {isEditing && (
-                      <button onClick={(e) => { e.stopPropagation(); handleRemoveAlbum(album.spotifyData.id); }} className="edit-button" style={{backgroundColor: '#c0392b'}}>Remove</button>
-                  )}
-                </div>
+        {playbackState && playbackState.is_playing && playingAlbum && playingSide && (
+          <div className="now-playing-container">
+            <h3>Now Playing: {playingAlbum.spotifyData.name}</h3>
+            <p>By {playingAlbum.spotifyData.artists[0].name} - Side {playingSide}</p>
+            <ul className="track-list">
+              {playingAlbum.getSide(playingSide).tracks.map((track, index) => (
+                <li key={track.id}>
+                  <span className="track-name">{index + 1}. {track.name}</span>
+                  <span className="track-duration">{formatDuration(track.duration_ms)}</span>
+                </li>
               ))}
-            </div>
+            </ul>
+          </div>
+        )}
 
-            {libraryAlbums.length > 0 && !selectedAlbum && (
-                <p style={{marginTop: '16px'}}>Select an album from your library to begin.</p>
-            )}
-
-            {libraryAlbums.length === 0 && !showOnboarding && (
-                <p>Your library is empty. Find some albums to add!</p>
-            )}
+        {selectedAlbum && (
+          <div className="bottom-controls-container">
+              <div className="selected-album-info">
+                <img 
+                  src={selectedAlbum.spotifyData.images[2]?.url || selectedAlbum.spotifyData.images[0]?.url} 
+                  alt={selectedAlbum.spotifyData.name} 
+                />
+                <div>
+                  <strong>{selectedAlbum.spotifyData.name}</strong>
+                  <span>{selectedAlbum.spotifyData.artists[0].name}</span>
+                </div>
+              </div>
+              {renderSideButtons()}
           </div>
         )}
       </div>
-
-      {isSearching && (
-        <div className="search-modal">
-            <h2>Find an Album</h2>
-            <input type="text" placeholder="Search by album or artist..." onChange={handleSearch} />
-            <div className="search-results">
-                {searchResults.map(album => (
-                    <div key={album.id} className="album-card" onClick={() => { handleAddAlbumToLibrary(album); setIsSearching(false); }}>
-                        <img src={album.images[2]?.url || album.images[0]?.url} alt={album.name} className="album-card-art" />
-                        <div className="album-card-info">
-                            <div>{album.name}</div>
-                            <span>{album.artists[0].name}</span>
-                        </div>
-                    </div>
-                ))}
-            </div>
-            <button onClick={() => setIsSearching(false)} style={{marginTop: '20px'}}>Close</button>
-        </div>
-      )}
-
-      {playbackState && playbackState.is_playing && playingAlbum && playingSide && (
-        <div className="now-playing-container">
-          <h3>Now Playing: {playingAlbum.spotifyData.name}</h3>
-          <p>By {playingAlbum.spotifyData.artists[0].name} - Side {playingSide}</p>
-          <ul className="track-list">
-            {playingAlbum.getSide(playingSide).tracks.map((track, index) => (
-              <li key={track.id}>
-                <span className="track-name">{index + 1}. {track.name}</span>
-                <span className="track-duration">{formatDuration(track.duration_ms)}</span>
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
-
-      {selectedAlbum && (
-        <div className="bottom-controls-container">
-            <div className="selected-album-info">
-              <img 
-                src={selectedAlbum.spotifyData.images[2]?.url || selectedAlbum.spotifyData.images[0]?.url} 
-                alt={selectedAlbum.spotifyData.name} 
-              />
-              <div>
-                <strong>{selectedAlbum.spotifyData.name}</strong>
-                <span>{selectedAlbum.spotifyData.artists[0].name}</span>
-              </div>
-            </div>
-            {renderSideButtons()}
-        </div>
-      )}
-    </div>
+    </>
   );
 }
