@@ -1,13 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { getAccessToken, getTopAlbums, initPlayer, getUserProfile, playAlbum, getCurrentPlaybackState, searchAlbums, getAlbumDetails, togglePlayPause } from '../src/spotifyAuth';
 import { User } from '../src/models';
-import { initThreeScene, setShelfAlbumCount, setToneArmPlaying, setAlbumCover } from '../src/threeScene';
-
-const formatDuration = (ms) => {
-  const minutes = Math.floor(ms / 60000);
-  const seconds = ((ms % 60000) / 1000).toFixed(0);
-  return `${minutes}:${seconds < 10 ? '0' : ''}${seconds}`;
-};
+import { initThreeScene, setShelfAlbumCount, setToneArmPlaying, setAlbumCover, setNowPlayingInfo, clearNowPlayingInfo } from '../src/threeScene';
 
 export default function Home() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -112,14 +106,20 @@ export default function Home() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [isAuthenticated]);
 
-  // Sync album cover with 3D scene when selectedAlbum changes
+  // Set album cover on wall based on currently playing album (not selected album)
   useEffect(() => {
-    if (selectedAlbum && selectedAlbum.spotifyData && selectedAlbum.spotifyData.images && selectedAlbum.spotifyData.images.length > 0) {
+    if (playingAlbum && playingAlbum.spotifyData && playingAlbum.spotifyData.images && playingAlbum.spotifyData.images.length > 0) {
       // Prefer the largest available image
+      const img = playingAlbum.spotifyData.images[0].url;
+      const albumName = playingAlbum.spotifyData.name || "Album";
+      setAlbumCover(img, albumName);
+    } else if (selectedAlbum && selectedAlbum.spotifyData && selectedAlbum.spotifyData.images && selectedAlbum.spotifyData.images.length > 0) {
+      // Fallback to selected album if nothing is playing
       const img = selectedAlbum.spotifyData.images[0].url;
-      setAlbumCover(img);
+      const albumName = selectedAlbum.spotifyData.name || "Album";
+      setAlbumCover(img, albumName);
     }
-  }, [selectedAlbum]);
+  }, [playingAlbum, selectedAlbum]);
 
   // When user and libraryAlbums are loaded, select a random album if none is selected
   useEffect(() => {
@@ -136,8 +136,23 @@ export default function Home() {
 
   // Animate tone arm on playback state change
   useEffect(() => {
-    setToneArmPlaying(playbackState && playbackState.is_playing);
-  }, [playbackState && playbackState.is_playing]);
+    const isPlaying = playbackState && playbackState.is_playing;
+    setToneArmPlaying(isPlaying);
+    
+    // Set or clear Now Playing info for the record player tooltip
+    if (isPlaying && playingAlbum && playingSide) {
+      const sideData = playingAlbum.getSide(playingSide);
+      const nowPlayingData = {
+        albumName: playingAlbum.spotifyData.name,
+        artistName: playingAlbum.spotifyData.artists[0].name,
+        side: playingSide,
+        tracks: sideData.tracks
+      };
+      setNowPlayingInfo(nowPlayingData);
+    } else {
+      clearNowPlayingInfo();
+    }
+  }, [playbackState && playbackState.is_playing, playingAlbum, playingSide]);
 
   const handleSelectAlbum = (album) => {
     setSelectedAlbum(album);
@@ -350,47 +365,6 @@ export default function Home() {
             font-size: 14px;
             opacity: 0.8;
           }
-          .now-playing-container {
-            position: absolute;
-            top: 16px;
-            left: 50%;
-            transform: translateX(-50%);
-            z-index: 10;
-            color: white;
-            background-color: rgba(20, 20, 20, 0.9);
-            padding: 15px 25px;
-            border-radius: 15px;
-            border: 1px solid #333;
-            text-align: center;
-            width: 400px;
-          }
-          .now-playing-container h3 {
-            margin: 0 0 5px 0;
-            font-size: 16px;
-          }
-          .now-playing-container p {
-            margin: 0 0 15px 0;
-            font-size: 14px;
-            opacity: 0.8;
-          }
-          .track-list {
-            list-style: none;
-            padding: 0;
-            margin: 0;
-            text-align: left;
-          }
-          .track-list li {
-            display: flex;
-            justify-content: space-between;
-            padding: 4px 0;
-            font-size: 14px;
-          }
-          .track-list .track-name {
-            opacity: 0.9;
-          }
-          .track-list .track-duration {
-            opacity: 0.7;
-          }
           .search-modal {
               position: fixed;
               top: 50%;
@@ -524,21 +498,6 @@ export default function Home() {
                   ))}
               </div>
               <button onClick={() => setIsSearching(false)} style={{marginTop: '20px'}}>Close</button>
-          </div>
-        )}
-
-        {playbackState && playbackState.is_playing && playingAlbum && playingSide && (
-          <div className="now-playing-container">
-            <h3>Now Playing: {playingAlbum.spotifyData.name}</h3>
-            <p>By {playingAlbum.spotifyData.artists[0].name} - Side {playingSide}</p>
-            <ul className="track-list">
-              {playingAlbum.getSide(playingSide).tracks.map((track, index) => (
-                <li key={track.id}>
-                  <span className="track-name">{index + 1}. {track.name}</span>
-                  <span className="track-duration">{formatDuration(track.duration_ms)}</span>
-                </li>
-              ))}
-            </ul>
           </div>
         )}
 

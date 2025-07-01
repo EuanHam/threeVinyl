@@ -2,26 +2,46 @@ import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 
-let scene, camera, renderer, controls, shelf, albumMeshes = [], shelfBox, shelfY, shelfZ;
-let canvasParent = null;
+// Global variables for the Three.js scene
+let scene, camera, renderer, controls;
+let shelf, shelfBox, shelfY, shelfZ;
+let albumMeshes = [], numAlbums = 0;
+let toneArm, toneArmRestRotation, toneArmPlayRotation;
+let toneArmTarget, toneArmAnimating = false;
 let albumMesh = null;
 let laptop = null;
-let numAlbums = 40; // Default, can be updated
-let toneArm = null;
-let toneArmRestRotation = 0;
-let toneArmPlayRotation = -Math.PI / 6;
-let toneArmAnimating = false;
-let toneArmTarget = 0;
-let albumCoverTexture = null;
-let pendingAlbumCoverUrl = null;
+let record = null;
+let isRecordSpinning = false;
+let model = null; // U-Turn record player model
+let canvasParent = null;
 
-export async function setAlbumCover(url) {
-    console.log('setAlbumCover called with URL:', url);
+// Tooltip system variables
+const raycaster = new THREE.Raycaster();
+const mouse = new THREE.Vector2();
+let albumTooltip = null;
+let laptopTooltip = null;
+let recordPlayerTooltip = null;
+
+// State for tooltips
+let currentAlbumName = "Album";
+let nowPlayingInfo = null; // Will store current playing info
+let albumCoverTexture = null;
+
+// Pending album cover and name (in case mesh isn't ready yet)
+let pendingAlbumCoverUrl = null;
+let pendingAlbumName = null;
+
+export async function setAlbumCover(url, albumName = "Album") {
+    console.log('setAlbumCover called with URL:', url, 'Album name:', albumName);
     console.log('albumMesh exists:', !!albumMesh);
+    
+    // Store the album name for tooltip
+    currentAlbumName = albumName;
     
     if (!albumMesh) {
         console.log('albumMesh not ready, storing pending URL:', url);
         pendingAlbumCoverUrl = url;
+        pendingAlbumName = albumName;
         return;
     }
     const textureLoader = new THREE.TextureLoader();
@@ -60,6 +80,13 @@ export function initThreeScene(parentElement) {
     parentElement.appendChild(renderer.domElement);
     controls = new OrbitControls(camera, renderer.domElement);
     window.addEventListener('resize', onWindowResize);
+    
+    // Initialize tooltips
+    createTooltips();
+    
+    // Add mouse event listeners
+    renderer.domElement.addEventListener('mousemove', onMouseMove, false);
+    
     loadModels();
     animate();
 }
@@ -89,12 +116,13 @@ export function setToneArmPlaying(isPlaying) {
     if (!toneArm) return;
     toneArmTarget = isPlaying ? toneArmPlayRotation : toneArmRestRotation;
     toneArmAnimating = true;
+    isRecordSpinning = isPlaying;
 }
 
 async function loadModels() {
     const loader = new GLTFLoader();
     const textureLoader = new THREE.TextureLoader();
-    let model, table;
+    let table;
     // --- Load U-Turn Model ---
     const uturnGltf = await loader.loadAsync('uturn.glb');
     model = uturnGltf.scene;
@@ -112,7 +140,7 @@ async function loadModels() {
         const recordGeometry = new THREE.CylinderGeometry(recordRadius, recordRadius, recordHeight, 32);
         const blackMaterial = new THREE.MeshStandardMaterial({ color: 0x010101 });
         const vinylMaterial = new THREE.MeshStandardMaterial({ map: vinylTexture });
-        const record = new THREE.Mesh(recordGeometry, [blackMaterial, vinylMaterial, blackMaterial]);
+        record = new THREE.Mesh(recordGeometry, [blackMaterial, vinylMaterial, blackMaterial]);
         record.position.copy(originalCylinder.position);
         record.position.y += localSize.y;
         originalCylinder.parent.add(record);
@@ -194,8 +222,9 @@ async function loadModels() {
     // If a cover was requested before mesh was ready, apply it now
     if (pendingAlbumCoverUrl) {
         console.log('Applying pending album cover:', pendingAlbumCoverUrl);
-        setAlbumCover(pendingAlbumCoverUrl);
+        setAlbumCover(pendingAlbumCoverUrl, pendingAlbumName || "Album");
         pendingAlbumCoverUrl = null;
+        pendingAlbumName = null;
     }
     // --- Room, Floor, Ceiling, Lighting, Walls, Laptop ---
     // --- Add Floor ---
@@ -303,6 +332,10 @@ function addAlbumsToShelf() {
 
 function animate() {
     requestAnimationFrame(animate);
+    
+    // Update tooltips
+    updateTooltips();
+    
     // Animate tone arm
     if (toneArm && toneArmAnimating) {
         const diff = toneArmTarget - toneArm.rotation.y;
@@ -313,6 +346,172 @@ function animate() {
             toneArmAnimating = false;
         }
     }
+    // Animate record spinning
+    if (record && isRecordSpinning) {
+        record.rotation.y += 0.1; // Adjust speed as needed (0.01 radians per frame)
+    }
     controls.update();
     renderer.render(scene, camera);
+}
+
+// Create tooltip DOM elements
+function createTooltips() {
+    // Album tooltip
+    albumTooltip = document.createElement('div');
+    albumTooltip.style.position = 'absolute';
+    albumTooltip.style.display = 'none';
+    albumTooltip.style.background = 'rgba(0, 0, 0, 0.8)';
+    albumTooltip.style.color = 'white';
+    albumTooltip.style.padding = '8px 12px';
+    albumTooltip.style.borderRadius = '4px';
+    albumTooltip.style.pointerEvents = 'none';
+    albumTooltip.style.fontSize = '14px';
+    albumTooltip.style.zIndex = '1000';
+    albumTooltip.style.maxWidth = '200px';
+    document.body.appendChild(albumTooltip);
+
+    // Laptop tooltip
+    laptopTooltip = document.createElement('div');
+    laptopTooltip.style.position = 'absolute';
+    laptopTooltip.style.display = 'none';
+    laptopTooltip.style.background = 'rgba(0, 0, 0, 0.8)';
+    laptopTooltip.style.color = 'white';
+    laptopTooltip.style.padding = '8px 12px';
+    laptopTooltip.style.borderRadius = '4px';
+    laptopTooltip.style.pointerEvents = 'none';
+    laptopTooltip.style.fontSize = '14px';
+    laptopTooltip.style.zIndex = '1000';
+    laptopTooltip.innerHTML = 'Minecraft Java Edition';
+    document.body.appendChild(laptopTooltip);
+
+    // Record player tooltip
+    recordPlayerTooltip = document.createElement('div');
+    recordPlayerTooltip.style.position = 'absolute';
+    recordPlayerTooltip.style.display = 'none';
+    recordPlayerTooltip.style.background = 'rgba(0, 0, 0, 0.8)';
+    recordPlayerTooltip.style.color = 'white';
+    recordPlayerTooltip.style.padding = '12px 16px';
+    recordPlayerTooltip.style.borderRadius = '6px';
+    recordPlayerTooltip.style.pointerEvents = 'none';
+    recordPlayerTooltip.style.fontSize = '14px';
+    recordPlayerTooltip.style.zIndex = '1000';
+    recordPlayerTooltip.style.maxWidth = '300px';
+    recordPlayerTooltip.style.lineHeight = '1.4';
+    document.body.appendChild(recordPlayerTooltip);
+}
+
+// Mouse move handler for tooltips
+function onMouseMove(event) {
+    if (!camera || !renderer) return;
+    
+    // Calculate mouse position in normalized device coordinates
+    const rect = renderer.domElement.getBoundingClientRect();
+    mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+    mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+
+    // Position tooltips near the cursor
+    const tooltipX = event.clientX + 15;
+    const tooltipY = event.clientY + 15;
+    
+    if (albumTooltip) {
+        albumTooltip.style.left = tooltipX + 'px';
+        albumTooltip.style.top = tooltipY + 'px';
+    }
+    if (laptopTooltip) {
+        laptopTooltip.style.left = tooltipX + 'px';
+        laptopTooltip.style.top = tooltipY + 'px';
+    }
+    if (recordPlayerTooltip) {
+        recordPlayerTooltip.style.left = tooltipX + 'px';
+        recordPlayerTooltip.style.top = tooltipY + 'px';
+    }
+}
+
+// Update tooltips based on raycasting
+function updateTooltips() {
+    if (!camera || !raycaster) return;
+    
+    raycaster.setFromCamera(mouse, camera);
+
+    // Album tooltip
+    if (albumMesh && albumTooltip) {
+        const albumIntersects = raycaster.intersectObject(albumMesh);
+        if (albumIntersects.length > 0) {
+            albumTooltip.innerHTML = currentAlbumName;
+            albumTooltip.style.display = 'block';
+        } else {
+            albumTooltip.style.display = 'none';
+        }
+    }
+
+    // Laptop tooltip
+    if (laptop && laptopTooltip) {
+        const laptopIntersects = raycaster.intersectObject(laptop, true);
+        const onLaptop = laptopIntersects.length > 0;
+        laptopTooltip.style.display = onLaptop ? 'block' : 'none';
+    }
+
+    // Record player tooltip (U-Turn model and record)
+    if (recordPlayerTooltip && (model || record)) {
+        let onRecordPlayer = false;
+        
+        // Check intersections with the U-Turn model
+        if (model) {
+            const modelIntersects = raycaster.intersectObject(model, true);
+            if (modelIntersects.length > 0) {
+                onRecordPlayer = true;
+            }
+        }
+        
+        // Check intersections with the vinyl record
+        if (record && !onRecordPlayer) {
+            const recordIntersects = raycaster.intersectObject(record);
+            if (recordIntersects.length > 0) {
+                onRecordPlayer = true;
+            }
+        }
+
+        if (onRecordPlayer && nowPlayingInfo) {
+            // Show Now Playing info
+            const { albumName, artistName, side, tracks } = nowPlayingInfo;
+            let tooltipContent = `<div style="font-weight: bold; margin-bottom: 4px;">Now Playing</div>`;
+            tooltipContent += `<div style="font-weight: bold;">${albumName}</div>`;
+            tooltipContent += `<div style="opacity: 0.8; margin-bottom: 6px;">by ${artistName}</div>`;
+            tooltipContent += `<div style="font-weight: bold; margin-bottom: 4px;">Side ${side}</div>`;
+            
+            if (tracks && tracks.length > 0) {
+                tooltipContent += `<div style="font-size: 12px; opacity: 0.9;">`;
+                tracks.forEach((track, index) => {
+                    tooltipContent += `${index + 1}. ${track.name}<br>`;
+                });
+                tooltipContent += `</div>`;
+            }
+            
+            recordPlayerTooltip.innerHTML = tooltipContent;
+            recordPlayerTooltip.style.display = 'block';
+        } else if (onRecordPlayer) {
+            // Show generic record player info when not playing
+            recordPlayerTooltip.innerHTML = '<div style="font-weight: bold;">U-Turn Audio Orbit Plus</div><div style="opacity: 0.8;">Turntable</div>';
+            recordPlayerTooltip.style.display = 'block';
+        } else {
+            recordPlayerTooltip.style.display = 'none';
+        }
+    }
+}
+
+export function setAlbumName(albumName) {
+    currentAlbumName = albumName;
+    if (albumTooltip) {
+        albumTooltip.innerHTML = albumName;
+    }
+}
+
+export function setNowPlayingInfo(playingInfo) {
+    nowPlayingInfo = playingInfo;
+    console.log('Now playing info updated:', playingInfo);
+}
+
+export function clearNowPlayingInfo() {
+    nowPlayingInfo = null;
+    console.log('Now playing info cleared');
 }
