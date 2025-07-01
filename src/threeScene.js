@@ -12,6 +12,34 @@ let toneArmRestRotation = 0;
 let toneArmPlayRotation = -Math.PI / 6;
 let toneArmAnimating = false;
 let toneArmTarget = 0;
+let albumCoverTexture = null;
+let pendingAlbumCoverUrl = null;
+
+export async function setAlbumCover(url) {
+    console.log('setAlbumCover called with URL:', url);
+    console.log('albumMesh exists:', !!albumMesh);
+    
+    if (!albumMesh) {
+        console.log('albumMesh not ready, storing pending URL:', url);
+        pendingAlbumCoverUrl = url;
+        return;
+    }
+    const textureLoader = new THREE.TextureLoader();
+    try {
+        console.log('Loading texture from:', url);
+        const texture = await textureLoader.loadAsync(url);
+        texture.encoding = THREE.sRGBEncoding;
+        console.log('Texture loaded successfully, applying to all 6 faces');
+        for (let i = 0; i < 6; i++) {
+            albumMesh.material[i].map = texture;
+            albumMesh.material[i].needsUpdate = true;
+        }
+        albumCoverTexture = texture;
+        console.log('Album cover applied successfully');
+    } catch (e) {
+        console.warn('Failed to load album cover texture:', url, e);
+    }
+}
 
 export function initThreeScene(parentElement) {
     if (renderer) return; // Prevent double init
@@ -148,20 +176,27 @@ async function loadModels() {
     // --- Add Albums to Shelf ---
     addAlbumsToShelf();
     // --- Album Cover (detailed) ---
-    const albumTexture = await textureLoader.loadAsync("https://upload.wikimedia.org/wikipedia/en/5/54/Herbie-Hancock-Head-Hunters.png");
+    // No default album cover loaded here; will be set by setAlbumCover from React
     const materials = [
-        new THREE.MeshStandardMaterial({ color: 0x111111 }),
-        new THREE.MeshStandardMaterial({ color: 0x111111 }),
-        new THREE.MeshStandardMaterial({ color: 0x111111 }),
-        new THREE.MeshStandardMaterial({ color: 0x111111 }),
-        new THREE.MeshStandardMaterial({ map: albumTexture }),
-        new THREE.MeshStandardMaterial({ color: 0x111111 })
+        new THREE.MeshStandardMaterial({ color: 0xffffff }), // Bright red for visibility
+        new THREE.MeshStandardMaterial({ color: 0xffffff }),
+        new THREE.MeshStandardMaterial({ color: 0xffffff }),
+        new THREE.MeshStandardMaterial({ color: 0xffffff }),
+        new THREE.MeshStandardMaterial({ color: 0xffffff }),
+        new THREE.MeshStandardMaterial({ color: 0xffffff })
     ];
-    const albumGeometry = new THREE.BoxGeometry(1, 1, 0.05);
+    const albumGeometry = new THREE.BoxGeometry(1, 1, 0.1); // Made much larger
     albumMesh = new THREE.Mesh(albumGeometry, materials);
-    const shelfCenterX = (shelfBox.min.x + shelfBox.max.x) / 2 - 1.3;
-    albumMesh.position.set(shelfCenterX + .6, shelfY + 2.8, shelfZ);
+    // Position it prominently in front of the camera
+    albumMesh.position.set(-.7, .8, shelf.position.z); // Center it in front of camera
     scene.add(albumMesh);
+    console.log('Album mesh created and added to scene');
+    // If a cover was requested before mesh was ready, apply it now
+    if (pendingAlbumCoverUrl) {
+        console.log('Applying pending album cover:', pendingAlbumCoverUrl);
+        setAlbumCover(pendingAlbumCoverUrl);
+        pendingAlbumCoverUrl = null;
+    }
     // --- Room, Floor, Ceiling, Lighting, Walls, Laptop ---
     // --- Add Floor ---
     const wallHeight = 5, wallThickness = 0.05, wallExtra = 2;

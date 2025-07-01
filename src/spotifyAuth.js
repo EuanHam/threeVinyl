@@ -569,7 +569,16 @@ export const searchAlbums = async (query) => {
     if (!token || !query) return [];
 
     try {
-        const response = await fetch(`https://api.spotify.com/v1/search?q=${encodeURIComponent(query)}&type=album&limit=20`, {
+        // For very short queries (like "iu"), be more specific with the search
+        let searchQuery = query.trim();
+        
+        // If query is very short, try to search specifically for artist
+        if (searchQuery.length <= 3) {
+            // Try artist-specific search first
+            searchQuery = `artist:"${searchQuery}"`;
+        }
+        
+        const response = await fetch(`https://api.spotify.com/v1/search?q=${encodeURIComponent(searchQuery)}&type=album&limit=20`, {
             headers: { 'Authorization': `Bearer ${token}` }
         });
 
@@ -578,7 +587,21 @@ export const searchAlbums = async (query) => {
         }
 
         const data = await response.json();
-        return data.albums ? data.albums.items : [];
+        let results = data.albums ? data.albums.items : [];
+        
+        // If no results with artist-specific search and query is short, try a broader search
+        if (results.length === 0 && query.length <= 3) {
+            const broadResponse = await fetch(`https://api.spotify.com/v1/search?q=${encodeURIComponent(query)}&type=album&limit=20`, {
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+            
+            if (broadResponse.ok) {
+                const broadData = await broadResponse.json();
+                results = broadData.albums ? broadData.albums.items : [];
+            }
+        }
+        
+        return results;
     } catch (error) {
         console.error('Error searching albums:', error);
         return [];

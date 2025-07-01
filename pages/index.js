@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { getAccessToken, getTopAlbums, initPlayer, getUserProfile, playAlbum, getCurrentPlaybackState, searchAlbums, getAlbumDetails, togglePlayPause } from '../src/spotifyAuth';
 import { User } from '../src/models';
-import { initThreeScene, setShelfAlbumCount, setToneArmPlaying } from '../src/threeScene';
+import { initThreeScene, setShelfAlbumCount, setToneArmPlaying, setAlbumCover } from '../src/threeScene';
 
 const formatDuration = (ms) => {
   const minutes = Math.floor(ms / 60000);
@@ -112,6 +112,23 @@ export default function Home() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [isAuthenticated]);
 
+  // Sync album cover with 3D scene when selectedAlbum changes
+  useEffect(() => {
+    if (selectedAlbum && selectedAlbum.spotifyData && selectedAlbum.spotifyData.images && selectedAlbum.spotifyData.images.length > 0) {
+      // Prefer the largest available image
+      const img = selectedAlbum.spotifyData.images[0].url;
+      setAlbumCover(img);
+    }
+  }, [selectedAlbum]);
+
+  // When user and libraryAlbums are loaded, select a random album if none is selected
+  useEffect(() => {
+    if (user && libraryAlbums.length > 0 && !selectedAlbum) {
+      const randomIdx = Math.floor(Math.random() * libraryAlbums.length);
+      setSelectedAlbum(libraryAlbums[randomIdx]);
+    }
+  }, [user, libraryAlbums]);
+
   // Sync album count with shelf
   useEffect(() => {
     setShelfAlbumCount(libraryAlbums.length);
@@ -168,8 +185,8 @@ export default function Home() {
   };
 
   const handleSearch = async (event) => {
-    const query = event.target.value;
-    if (query.length > 2) {
+    const query = event.target.value.trim();
+    if (query.length >= 2) {
       const results = await searchAlbums(query);
       setSearchResults(results);
     } else {
