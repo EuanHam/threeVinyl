@@ -287,6 +287,7 @@ export const playAlbum = async (albumObject, sideLetter = null) => {
         if (side && side.tracks.length > 0) {
             urisToPlay = side.tracks.map(track => track.uri);
             playOptions.uris = urisToPlay;
+            playOptions.position_ms = 0; // Start at the beginning of the first track
             console.log(`Playing side ${sideLetter} of ${albumObject.spotifyData.name} with tracks:`, urisToPlay);
         } else {
             console.warn(`Side ${sideLetter} not found or is empty for album ${albumObject.spotifyData.name}.`);
@@ -298,22 +299,28 @@ export const playAlbum = async (albumObject, sideLetter = null) => {
         contextUri = albumObject.spotifyData.uri;
         playOptions.context_uri = contextUri;
         playOptions.offset = { position: 0 }; // Ensure it starts from the first track
+        playOptions.position_ms = 0;
         console.log(`Playing full album: ${albumObject.spotifyData.name}`);
     }
 
     try {
-        // 1. Set shuffle and repeat mode before playing.
-        // These calls are important for the "album experience".
+        // Set shuffle and repeat mode BEFORE playing.
+        console.log(`Setting shuffle to false for device ${deviceId}`);
         await fetch(`https://api.spotify.com/v1/me/player/set-shuffle?state=false&device_id=${deviceId}`, {
             method: 'PUT',
             headers: { 'Authorization': `Bearer ${token}` },
         });
+        console.log(`Setting repeat to off for device ${deviceId}`);
         await fetch(`https://api.spotify.com/v1/me/player/set-repeat?state=off&device_id=${deviceId}`, {
             method: 'PUT',
             headers: { 'Authorization': `Bearer ${token}` },
         });
 
-        // 2. Start playback with the chosen context or track URIs.
+        // A delay is often necessary for the Spotify API to process state changes before playing.
+        await new Promise(resolve => setTimeout(resolve, 500));
+
+        // Start playback with the actual content.
+        console.log('Starting playback with options:', playOptions);
         const playResponse = await fetch(`https://api.spotify.com/v1/me/player/play?device_id=${deviceId}`, {
             method: 'PUT',
             body: JSON.stringify(playOptions),
